@@ -1,6 +1,6 @@
 {
   "name": "site-signal",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "A local-first GSC, GA4, and Matomo content-opportunity CLI and MCP server.",
   "type": "module",
   "bin": { "site-signal": "./dist/cli.js" },

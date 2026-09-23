@@ -14,6 +14,8 @@ Site Signal helps answer a deliberately narrow question: *which pages are worth 
 - Supports 30-, 60-, and 90-day comparisons, labels pages without a meaningful baseline as `maturing`, and offers bounded country, device, and search-appearance diagnostics.
 - Returns optional, bounded local source context for a selected page or question when a repository path is configured; a chat client can then assess answer coverage and propose changes.
 - Returns a chat-first page brief and keeps a local, explicit action/review log.
+- Returns comparable locally stored page history and before/after review evidence for recorded changes without claiming causality.
+- Shows how much of each page total is represented by the bounded query examples.
 - Exposes raw context, segments, lifecycle evidence, query entry/exit, measurement readiness, and opt-in repository/link context over MCP.
 - Creates a deterministic local Markdown + JSON report of review-gated changes.
 - Exposes local status, opportunity discovery, and report generation over stdio MCP.
@@ -68,11 +70,13 @@ site-signal doctor
 site-signal sync
 site-signal report
 site-signal brief https://example.com/page/ --90
+site-signal history https://example.com/page/ --days=30 --limit=6
 site-signal questions --days=90 --limit=30
 site-signal investigate https://example.com/page/ --days=60
 site-signal question-context https://example.com/page/ --question="How do I solve this?" --days=90
 site-signal segments https://example.com/page/ device
 site-signal actions list
+site-signal actions review ACTION_ID
 ```
 
 For optional local repository and outcome evidence, add these only to your private env file:
@@ -123,11 +127,15 @@ For a local MCP host, run:
 site-signal mcp
 ```
 
-The MCP tools are `get_site_status`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, and `record_local_action`.
+The MCP tools are `get_site_status`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
 
 `find_question_opportunities` is a site-wide, bounded GSC query-and-page view for sparse question-like queries. It uses transparent Danish and English text patterns and can include one-impression, zero-click rows. It returns measured Google queries only: it cannot identify questions asked in ChatGPT or another answer engine, and it does not recommend a content action.
 
 `get_page_investigation_context` is the general chat entry point for “inspect this URL over 30, 60, or 90 days.” It combines the selected URL's GSC and provider-scoped analytics evidence with bounded query examples and optional local source headings/excerpts. `get_question_page_context` does the same for a selected question and landing page. Neither tool judges answer quality or writes copy: a chat client does that from the returned evidence.
+
+`get_page_history` reads up to 12 matching observations already stored locally for one page, profile, analytics provider, and comparison window. It does not backfill missing history. Local actions can be typed as content, technical, campaign, tracking, external, or other changes. `get_action_review_context` retrieves a recorded baseline, a clean post-implementation observation when one exists, and any period that overlaps the implementation date. These are review aids, not causal attribution.
+
+Page context includes displayed query subtotals beside the page totals. A difference means only that it is not explained by the bounded rows returned; Site Signal does not label the difference as privacy-withheld or absent. `get_site_status` reports optional repository, sitemap, outcome-event, and analytics readiness separately from required profile setup.
 
 ## Interpretation rules
 

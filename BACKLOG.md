@@ -53,6 +53,14 @@ The tool must not automatically recommend a new page. Before a candidate becomes
 
 **Status: completed in v0.7.0.** `get_page_investigation_context` returns a selected URL's 30-, 60-, or 90-day GSC and provider-scoped analytics evidence, bounded query examples, and optional local source context. `get_question_page_context` adds a selected question. Local source context returns only mapping method, headings, and bounded matching excerpts. The chat client, not the MCP, decides whether the answer is already present, buried, weak, or missing and may then propose copy in chat.
 
+## Completed in v0.8.0 — history and review loop
+
+- **Historical snapshot comparison:** `get_page_history` returns up to 12 comparable, locally stored observations for a selected page and 30-, 60-, or 90-day window. It does not fetch missing history or label variation as a trend.
+- **Typed operational annotations:** local actions accept `content_update`, `technical_change`, `campaign`, `tracking_change`, `external_event`, or `other`; the additive SQLite migration preserves existing local data.
+- **Review-period evidence:** `get_action_review_context` retrieves an action's recorded baseline, a clean post-implementation observation when available, and any observation whose period overlaps the implementation date. It explicitly makes no causal claim.
+- **Query-example coverage cue:** page context shows the displayed query-row count and subtotals beside page totals for both periods. The difference is labelled as unexplained by the displayed examples, not privacy-withheld or absent.
+- **Optional capability readiness:** `get_site_status` reports repository, sitemap, outcome-event, and analytics readiness separately without making optional setup a core-profile failure.
+
 ## Next local setup — decision-gated
 
 ### Configure opt-in repository and sitemap context
@@ -67,14 +75,6 @@ Set `SITE_SIGNAL_REPOSITORY_PATH` to the site's local repository. Optionally set
 
 **Done when:** `get_repository_context` maps a known page to its actual source file, and `get_internal_link_context` returns only traceable candidates.
 
-### Expose optional capability readiness in site status
-
-**Decision improved:** Before starting an investigation, can a client tell which optional evidence sources are available without probing each tool separately?
-
-The first live MCP run returned `configured: true` and an empty `missingSetup` list from `get_site_status`, while repository context was unavailable because `SITE_SIGNAL_REPOSITORY_PATH` was unset. Keep the profile ready for GSC and analytics work, but expose repository, sitemap, and configured-outcome readiness separately from required setup.
-
-**Done when:** `get_site_status` distinguishes required profile readiness from each optional capability, including a machine-readable configured/unconfigured state and a bounded reason. Missing optional context must not make the core profile unavailable.
-
 ### Configure outcome events only when they are meaningful
 
 **Decision improved:** Can the site distinguish search visibility from a measurable business outcome?
@@ -87,41 +87,17 @@ Set `GA4_OUTCOME_EVENT_NAMES` only for events that represent a meaningful outcom
 
 ## Candidate data primitives — build only when a real decision needs them
 
-### Historical snapshot comparison
+### v0.9 candidate — query-to-page drift
 
-**Decision improved:** Is the current change persistent, improving, or ordinary variation across several observed periods?
+**Decision improved:** Has Google started associating an important query with a different landing page, or is the same query moving between several pages in a way that warrants investigation?
 
-Return bounded, locally stored snapshot history for a selected page: the last three to six comparable observations, their dates, raw metrics, and coverage state. The MCP must return measured history only; a chat client decides whether it is a trend or seasonality.
+Return bounded query-and-page evidence across comparable periods for a selected query or a small set of materially changing queries. Show the observed landing pages, raw clicks, impressions, CTR, position, period, and coverage limits. Call this **query-to-page drift**, not keyword cannibalization: changing or overlapping landing pages do not by themselves prove that pages compete or that consolidation is the right action.
 
-**Done when:** a client can compare an investigation against prior local snapshots without re-fetching or pretending that a single period proves a trend.
+Keep discovery deterministic and GSC-scoped. The chat client must inspect the relevant page sources before proposing consolidation, differentiation, internal linking, or no action.
 
-### Typed operational annotations
+**Target:** consider for v0.9.0 after the v0.8.0 history and review loop has been validated.
 
-**Decision improved:** Did a known content, technical, campaign, or tracking change occur inside the evidence window, making a simple period-over-period interpretation unsafe?
-
-Extend local annotations with an optional type such as `content_update`, `technical_change`, `campaign`, `tracking_change`, or `external_event`. Store the user-supplied date and note against a snapshot window. This exposes known context without claiming that it caused observed movement.
-
-The first live MCP run surfaced a page updated during the current 30-day period. That made the comparison useful for monitoring, but not a clean evaluation of the updated page.
-
-**Done when:** page-level evidence returns relevant annotations that fall inside either comparison window, with the original user-entered wording preserved and no causal claim added.
-
-### Query-example coverage cue
-
-**Decision improved:** Do the bounded query examples account for enough of the page-level movement to support the next investigation step?
-
-The first live MCP run returned page clicks that were not represented in the selected page's displayed query rows. This is valid because query rows are bounded and GSC may withhold low-volume data, but it is easy to misread the examples as a complete explanation.
-
-Start with a contract or presentation change because a client can calculate the displayed subtotal from the existing response. Add a server field only if repeated use shows clients cannot present the limitation consistently.
-
-**Done when:** page investigation output shows the displayed query-row limit and the displayed query click/impression subtotal beside the page total for both periods. Any difference must be labelled as unexplained by the displayed examples, not asserted to be privacy-withheld or absent.
-
-### Review-period evidence for recorded actions
-
-**Decision improved:** Has the agreed review date arrived, and what did the evidence look like before and after it?
-
-When an action has a baseline, implementation date, and review date, return the relevant comparable snapshots and coverage state. This is a retrieval aid, not a causal-analysis feature.
-
-**Done when:** a due review includes inspectable before/after evidence while clearly stating its limits.
+**Done when:** a client can identify a measured query whose observed landing-page association changed between comparable periods, inspect every returned page and coverage limitation, and avoid presenting incomplete top-row evidence as a complete query history.
 
 ### Bounded URL inventory evidence
 
