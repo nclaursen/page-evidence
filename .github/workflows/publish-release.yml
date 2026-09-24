@@ -1,0 +1,47 @@
+name: Publish GitHub release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-release.yml
+      - .github/release-notes/**
+      - package.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.repository == 'nclaursen/site-signal'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish the tagged package version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+
+          if ! git rev-parse --verify "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag does not exist; no release was created." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          notes=".github/release-notes/$tag.md"
+          if [[ -f "$notes" ]]; then
+            gh release create "$tag" --verify-tag --title "Site Signal $tag" --notes-file "$notes"
+          else
+            gh release create "$tag" --verify-tag --title "Site Signal $tag" --generate-notes
+          fi
+
+          echo "Published release $tag." >> "$GITHUB_STEP_SUMMARY"
