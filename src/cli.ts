@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config';
-import {analyticsProvider} from './analytics.js';
+import {analyticsProvider,EngageProviderError} from './analytics.js';
 import {auth,gsc} from './google.js';
 import {config} from './core.js';
 import {actionLog,actionReviewContext,findQuestionOpportunities,pageBrief,pageContext,pageHistory,pageInvestigationContext,pageSegmentContext,questionPageContext,recordAction,report,status,sync} from './service.js';
@@ -16,7 +16,7 @@ try{
     const c=config(),period={start:'2025-01-01',end:'2025-01-02'},output:any={...(await status()),checks:{livePage:false,gsc:false,analytics:false},guidance:[]};
     try{output.checks.livePage=(await wait(fetch(`https://${c.domain}`))).ok}catch{output.guidance.push('Check SITE_DOMAIN and network access.')}
     try{await wait(gsc(c,period));output.checks.gsc=true}catch{output.guidance.push('Check GSC_PROPERTY, OAuth consent, and Search Console access.')}
-    try{await wait(analyticsProvider(c).landingEvidence(period));output.checks.analytics=true}catch{output.guidance.push('Check the selected analytics provider configuration and read access.')}
+    try{await wait(analyticsProvider(c).landingEvidence(period));output.checks.analytics=true}catch(error){output.guidance.push(error instanceof EngageProviderError?error.message:'Check the selected analytics provider configuration and read access.')}
     console.log(JSON.stringify(output,null,2));process.exit(output.configured&&output.checks.livePage&&output.checks.gsc&&output.checks.analytics?0:1);
   }else if(command==='sync')console.log(JSON.stringify(await sync(args.includes('--refresh'),windowDays(args)),null,2));
   else if(command==='report')console.log(await report(args.includes('--refresh'),windowDays(args)));

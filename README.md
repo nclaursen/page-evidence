@@ -1,6 +1,6 @@
 # Site Signal
 
-**A local-first Google Search Console + GA4 or Matomo content-opportunity CLI and stdio MCP server.**
+**A local-first Google Search Console + GA4, Matomo, or Umbraco Engage content-opportunity CLI and stdio MCP server.**
 
 Site Signal helps answer a deliberately narrow question: *which pages are worth investigating next, what changed, and what can the data not prove?* It saves reports and snapshots locally, uses no model API, and never changes a website or analytics property.
 
@@ -8,7 +8,7 @@ Site Signal helps answer a deliberately narrow question: *which pages are worth 
 
 - Fetches finalized GSC page performance for two equivalent 30-day periods.
 - Shows bounded, side-by-side GSC query examples for a selected page and highlights observed movement.
-- Fetches provider-specific page and acquisition evidence separately: GA4 or Matomo.
+- Fetches provider-specific page evidence separately from GA4, Matomo, or Umbraco Engage. Acquisition evidence is available where the provider exposes it.
 - Normalizes URLs before comparing sources; retains the underlying source scope.
 - Labels every report and recommended investigation as `ready`, `incomplete_coverage`, `too_fresh`, or `insufficient_evidence`, with the reason shown alongside it.
 - Supports 30-, 60-, and 90-day comparisons, labels pages without a meaningful baseline as `maturing`, and offers bounded country, device, and search-appearance diagnostics.
@@ -62,7 +62,11 @@ GOOGLE_OAUTH_CLIENT_SECRET=replace-me
 SITE_SIGNAL_DATA_DIR=/absolute/path/to/private/site-signal-data/example
 ```
 
-`GA4_PROPERTY_ID` is the numeric reporting property ID, **not** a `G-...` Measurement ID. For Matomo, use `ANALYTICS_PROVIDER=matomo` plus `MATOMO_URL`, `MATOMO_SITE_ID`, and a read-only `MATOMO_TOKEN_AUTH`; see [.env.example](.env.example). Tokens, cache, SQLite database, and reports default to `~/.site-signal`, outside your repository.
+`GA4_PROPERTY_ID` is the numeric reporting property ID, **not** a `G-...` Measurement ID. For Matomo, use `ANALYTICS_PROVIDER=matomo` plus `MATOMO_URL`, `MATOMO_SITE_ID`, and a read-only `MATOMO_TOKEN_AUTH`; see [.env.example](.env.example). For Umbraco Engage 17 or 18, use `ANALYTICS_PROVIDER=engage` plus `UMBRACO_BASE_URL`, `UMBRACO_CLIENT_ID`, and `UMBRACO_CLIENT_SECRET` for a dedicated API user. Tokens, cache, SQLite database, and reports default to `~/.site-signal`, outside your repository.
+
+The Engage connector calls the Umbraco Management API directly. It authenticates through `/umbraco/management/api/v1/security/back-office/token`, checks `/umbraco/engage/management/api/v1/package`, and reads `/umbraco/engage/management/api/v1/analytics/query`. The API user needs Engage section access and the minimum analytics read permission. `site-signal doctor` checks authentication, permissions, the enabled Engage package, and the supported major version before sync.
+
+Engage evidence includes page views, page sessions, page visitors, bounce rate, average time on page, average engaged time on page, and configured goal completions when those columns are returned. A missing column is reported as unavailable, not zero. This integration intentionally excludes acquisition-source evidence, visitor profiles, heatmaps and scroll maps, write operations, and reporting regeneration.
 
 ```sh
 site-signal auth
@@ -89,11 +93,11 @@ GA4_OUTCOME_EVENT_NAMES=generate_lead,form_submit
 
 Repository and sitemap context remain opt-in. GA4 outcome events are returned as selected-period, property-level event counts; they are never attributed to individual Search Console queries.
 
-The OAuth flow requests `webmasters.readonly` and, only for GA4, `analytics.readonly`. GSC dates use Pacific time; GA4 uses the property timezone; verify the timezone behaviour of each Matomo instance with `site-signal doctor`.
+The OAuth flow requests `webmasters.readonly` and, only for GA4, `analytics.readonly`. GSC dates use Pacific time; GA4 uses the property timezone. Engage requests use explicit UTC date boundaries, while the reporting timezone and processing delay remain properties of the configured Engage installation. Verify provider behaviour with `site-signal doctor` and a fixed-range sync before relying on comparisons.
 
 ## Profiles and MCP
 
-One running Site Signal MCP server represents one site profile and one analytics provider. To use GA4 for one site and Matomo for another, run the same built executable as two named MCP entries, each with its own private env file and `SITE_SIGNAL_DATA_DIR`. Do not share a data directory between profiles.
+One running Site Signal MCP server represents one site profile and one analytics provider. To use GA4, Matomo, or Engage for different sites, run the same built executable as separate named MCP entries, each with its own private env file and `SITE_SIGNAL_DATA_DIR`. Do not share a data directory between profiles.
 
 Every snapshot, report, page-context result, and MCP response identifies its profile and analytics provider. This prevents Matomo visits from being presented as GA4 sessions and prevents snapshots from different sites being mixed.
 

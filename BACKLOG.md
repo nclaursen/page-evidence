@@ -12,7 +12,7 @@ Do not add an MCP feature unless it returns data or durable local state a client
 
 ## Completed
 
-- **Analytics provider boundary:** GA4, Matomo, and GSC-only setups expose honest provider scope and metric names.
+- **Analytics provider boundary:** GA4, Matomo, Umbraco Engage, and GSC-only setups expose honest provider scope, metric names, availability, and coverage limitations.
 - **Readiness and freshness:** reports expose incomplete coverage, reporting lag, sparse evidence, and maturing pages rather than overstating a conclusion.
 - **Flexible comparison windows:** 30-, 60-, and 90-day comparisons are available through CLI and MCP.
 - **Page investigation evidence:** raw page context, bounded query evidence, and country/device/search-appearance segments are available for a selected URL.
