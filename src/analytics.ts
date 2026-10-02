@@ -6,12 +6,23 @@ export type ProviderHealthState='available'|'unavailable'|'authentication_failed
 export type ProviderHealth={state:ProviderHealthState;authenticated:boolean;version?:string;reason:string};
 export interface AnalyticsProvider{name:AnalyticsProviderName;capabilities():string[];landingEvidence(period:Period):Promise<AnalyticsEvidence>;health?():Promise<ProviderHealth>}
 
-const number=(value:unknown):AnalyticsMetricValue=>{
+const number=(value:unknown,metric?:string):AnalyticsMetricValue=>{
   if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return null;
-  if(typeof value!=='number'&&typeof value!=='string')throw Error('Analytics response contained a non-numeric metric value.');
+  const invalid=()=>Error(metric?`Analytics response contained a non-numeric ${metric} metric value.`:'Analytics response contained a non-numeric metric value.');
+  if(typeof value!=='number'&&typeof value!=='string')throw invalid();
   const parsed=typeof value==='number'?value:Number(value);
-  if(!Number.isFinite(parsed))throw Error('Analytics response contained a non-numeric metric value.');
+  if(!Number.isFinite(parsed))throw invalid();
   return parsed;
+};
+const percent=(value:unknown,metric:string):AnalyticsMetricValue=>{
+  if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return null;
+  if(typeof value==='string'&&value.trim().endsWith('%')){
+    const raw=value.trim().slice(0,-1).trim();
+    if(!raw)throw Error(`Analytics response contained a non-numeric ${metric} metric value.`);
+    const parsed=number(raw,metric);
+    return parsed===null?null:parsed/100;
+  }
+  return number(value,metric);
 };
 const available=(labels:Record<string,string>)=>Object.fromEntries(Object.keys(labels).map(metric=>[metric,{available:true}]));
 
@@ -30,7 +41,7 @@ export class Ga4Provider implements AnalyticsProvider{
 
 const matomoLabels={visits:'Matomo visits',pageviews:'Matomo pageviews',uniquePageviews:'Matomo unique pageviews',entries:'Matomo entries',bounceRate:'Matomo bounce rate'};
 function matomoEndpoint(raw:string){const base=new URL(raw);if(base.protocol!=='https:')throw Error('MATOMO_URL must use HTTPS.');if(!base.pathname.endsWith('/'))base.pathname+='/';return new URL('index.php',base).toString()}
-async function matomoRequest(c:Config,method:string,period:Period,extra:Record<string,string>={}){const params=new URLSearchParams({module:'API',method,format:'JSON',idSite:c.matomoSiteId,period:'range',date:`${period.start},${period.end}`,filter_limit:String(c.analyticsCap),token_auth:c.matomoTokenAuth,...extra});const response=await fetch(matomoEndpoint(c.matomoUrl),{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params,signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error(`Matomo Reporting API returned HTTP ${response.status}.`);const body=await response.json() as unknown;if(body&&typeof body==='object'&&'result'in body&&(body as {result?:unknown}).result==='error')throw Error(`Matomo Reporting API error: ${String((body as {message?:unknown}).message||'unknown error')}`);return body}
+async function matomoRequest(c:Config,method:string,period:Period,extra:Record<string,string>={}){const params=new URLSearchParams({module:'API',method,format:'JSON',format_metrics:'0',idSite:c.matomoSiteId,period:'range',date:`${period.start},${period.end}`,filter_limit:String(c.analyticsCap),token_auth:c.matomoTokenAuth,...extra});const response=await fetch(matomoEndpoint(c.matomoUrl),{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params,signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error(`Matomo Reporting API returned HTTP ${response.status}.`);const body=await response.json() as unknown;if(body&&typeof body==='object'&&'result'in body&&(body as {result?:unknown}).result==='error')throw Error(`Matomo Reporting API error: ${String((body as {message?:unknown}).message||'unknown error')}`);return body}
 export class MatomoProvider implements AnalyticsProvider{
   name='matomo' as const;
   constructor(private c:Config){}
@@ -38,7 +49,7 @@ export class MatomoProvider implements AnalyticsProvider{
   async landingEvidence(period:Period){
     const [pageResponse,referrerResponse]=await Promise.all([matomoRequest(this.c,'Actions.getPageUrls',period,{flat:'1'}),matomoRequest(this.c,'Referrers.getReferrerType',period)]);
     const pageRows=Array.isArray(pageResponse)?pageResponse:[],referrerRows=Array.isArray(referrerResponse)?referrerResponse:[];
-    const rows=pageRows.map(row=>{const r=row as Record<string,unknown>;return{url:String(r.label||''),acquisition:null,metrics:{visits:number(r.nb_visits),pageviews:number(r.nb_hits),uniquePageviews:number(r.nb_uniq_pageviews),entries:number(r.entry_nb_visits),bounceRate:number(r.bounce_rate)}}}).filter(row=>row.url);
+    const rows=pageRows.map(row=>{const r=row as Record<string,unknown>;return{url:String(r.label||''),acquisition:null,metrics:{visits:number(r.nb_visits),pageviews:number(r.nb_hits),uniquePageviews:number(r.nb_uniq_pageviews),entries:number(r.entry_nb_visits),bounceRate:percent(r.bounce_rate,'Matomo bounce_rate')}}}).filter(row=>row.url);
     const sourceSummaries=referrerRows.map(row=>{const r=row as Record<string,unknown>;return{type:'Matomo referrer type',value:String(r.label||'(not set)'),metrics:{visits:number(r.nb_visits),actions:number(r.nb_actions),conversions:number(r.nb_conversions)}}});
     const capped=pageRows.length>=this.c.analyticsCap;
     return{provider:this.name,metricLabels:matomoLabels,metricAvailability:available(matomoLabels),rows,sourceSummaries,fetchedAt:new Date().toISOString(),period,coverage:{complete:!capped,limitations:[...(capped?[`Matomo page URL response reached the configured ${this.c.analyticsCap}-row cap.`]:[]),'Matomo referrer context is site-level in this evidence; it is not attributed to individual page rows.'],fetchedRows:rows.length}};
