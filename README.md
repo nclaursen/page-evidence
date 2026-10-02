@@ -133,6 +133,12 @@ site-signal mcp
 
 The MCP tools are `get_site_status`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
 
+### Untrusted Search Console query text
+
+Search queries are untrusted third-party text. MCP responses and CLI commands that expose query evidence hide instruction-like queries completely, bound other prompt-shaped queries to 200 characters, add opaque query IDs and safety metadata, and mark affected responses with `untrustedText`. Instruction-like queries are also excluded from query-derived local source and internal-link retrieval terms. This is exposure reduction by a keyword heuristic, not a security boundary: some instructions may be missed and harmless queries may be hidden.
+
+Raw snapshots and generated reports remain local and unchanged, so they can contain complete untrusted query text and must not be passed to an AI. An owner can explicitly opt into raw query text in MCP and CLI output with `SITE_SIGNAL_INCLUDE_RAW_QUERY_TEXT=1`; the warning metadata remains present. Set a private `SITE_SIGNAL_QUERY_ID_KEY` to keep opaque HMAC-based query IDs stable across server restarts. Without it, IDs are stable only for the lifetime of one process. Never commit either setting or its value.
+
 `find_question_opportunities` is a site-wide, bounded GSC query-and-page view for sparse question-like queries. It uses transparent Danish and English text patterns and can include one-impression, zero-click rows. It returns measured Google queries only: it cannot identify questions asked in ChatGPT or another answer engine, and it does not recommend a content action.
 
 `get_page_investigation_context` is the general chat entry point for “inspect this URL over 30, 60, or 90 days.” It combines the selected URL's GSC and provider-scoped analytics evidence with bounded query examples and optional local source headings/excerpts. `get_question_page_context` does the same for a selected question and landing page. Neither tool judges answer quality or writes copy: a chat client does that from the returned evidence.
