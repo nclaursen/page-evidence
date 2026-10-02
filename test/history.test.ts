@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {afterEach,beforeEach,describe,expect,it} from 'vitest';
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {Store} from '../src/core.js';
 import {actionReviewContext,pageHistory,queryCoverage,recordAction,status} from '../src/service.js';
 
 let dataDir='';
 const previousEnv:Record<string,string|undefined>={};
-const envKeys=['SITE_SIGNAL_DATA_DIR','SITE_SIGNAL_PROFILE','SITE_DOMAIN','GSC_PROPERTY','ANALYTICS_PROVIDER','SITE_SIGNAL_REPOSITORY_PATH','SITE_SIGNAL_SITEMAP_URL','GA4_OUTCOME_EVENT_NAMES'];
+const envKeys=['SITE_SIGNAL_DATA_DIR','SITE_SIGNAL_PROFILE','SITE_DOMAIN','GSC_PROPERTY','ANALYTICS_PROVIDER','SITE_SIGNAL_REPOSITORY_PATH','SITE_SIGNAL_SITEMAP_URL','GA4_OUTCOME_EVENT_NAMES','GA4_PROPERTY_ID','MATOMO_URL','MATOMO_SITE_ID','MATOMO_TOKEN_AUTH','UMBRACO_BASE_URL','UMBRACO_CLIENT_ID','UMBRACO_CLIENT_SECRET'];
 
 function snapshot(start:string,end:string,clicks:number,impressions:number){
   return{profile:'history-test',analyticsProvider:'none',range:{current:{start,end},previous:{start:'2025-12-01',end:'2025-12-30'}},gsc:[{url:'https://example.com/page',key:'/page',clicks,impressions,ctr:clicks/impressions,position:5}],previousGsc:[],analytics:{current:{provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}},previous:{provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}}},coverage:{gscTruncated:false},createdAt:`${end}T12:00:00.000Z`};
@@ -24,9 +24,17 @@ beforeEach(()=>{
   delete process.env.SITE_SIGNAL_REPOSITORY_PATH;
   delete process.env.SITE_SIGNAL_SITEMAP_URL;
   delete process.env.GA4_OUTCOME_EVENT_NAMES;
+  delete process.env.GA4_PROPERTY_ID;
+  delete process.env.MATOMO_URL;
+  delete process.env.MATOMO_SITE_ID;
+  delete process.env.MATOMO_TOKEN_AUTH;
+  delete process.env.UMBRACO_BASE_URL;
+  delete process.env.UMBRACO_CLIENT_ID;
+  delete process.env.UMBRACO_CLIENT_SECRET;
 });
 
 afterEach(()=>{
+  vi.unstubAllGlobals();
   for(const key of envKeys){const value=previousEnv[key];if(value===undefined)delete process.env[key];else process.env[key]=value}
   fs.rmSync(dataDir,{recursive:true,force:true});
 });
@@ -53,6 +61,41 @@ describe('stored history and review evidence',()=>{
     const result=await status();
     expect(result.configured).toBe(true);
     expect(result.optionalCapabilities).toMatchObject({repository:{configured:false},sitemap:{configured:false},outcomeEvents:{configured:false},analytics:{configured:false}});
+  });
+
+  it.each([
+    ['ga4',{GA4_PROPERTY_ID:'123'},'engagement rate'],
+    ['matomo',{MATOMO_URL:'https://analytics.example.com/',MATOMO_SITE_ID:'7',MATOMO_TOKEN_AUTH:'secret-token'},'Matomo visits and pageviews'],
+  ])('reports a fully configured %s provider as available',async(provider,settings,capability)=>{
+    process.env.ANALYTICS_PROVIDER=provider;
+    Object.assign(process.env,settings);
+    const result=await status();
+    expect(result).toMatchObject({configured:true,missingSetup:[],providerStatus:{state:'available'},optionalCapabilities:{analytics:{configured:true,status:'available'}}});
+    expect(result.capabilities).toContain(capability);
+  });
+
+  it('checks a fully configured Engage provider instead of reporting its settings as missing',async()=>{
+    process.env.ANALYTICS_PROVIDER='engage';
+    process.env.UMBRACO_BASE_URL='https://cms.example.com';
+    process.env.UMBRACO_CLIENT_ID='site-signal-reader';
+    process.env.UMBRACO_CLIENT_SECRET='top-secret';
+    vi.stubGlobal('fetch',vi.fn(async(url:unknown)=>String(url).endsWith('/token')?new Response(JSON.stringify({access_token:'access-token',expires_in:300})):new Response(JSON.stringify({version:'18.0.0',isPackageEnabled:true,featureAnalyticsEnabled:true}))));
+    const result=await status();
+    expect(result).toMatchObject({configured:true,missingSetup:[],providerStatus:{state:'available',authenticated:true,version:'18.0.0'},optionalCapabilities:{analytics:{configured:true,status:'available',authenticated:true}}});
+    expect(result.capabilities).toContain('aggregated page URL report');
+  });
+
+  it.each([
+    ['ga4',{},['ga4PropertyId']],
+    ['matomo',{MATOMO_URL:'https://analytics.example.com/'},['matomoSiteId','matomoTokenAuth']],
+    ['engage',{UMBRACO_CLIENT_ID:'site-signal-reader'},['umbracoBaseUrl','umbracoClientSecret']],
+  ])('reports only the missing %s provider settings',async(provider,settings,expectedMissing)=>{
+    process.env.ANALYTICS_PROVIDER=provider;
+    Object.assign(process.env,settings);
+    const result=await status();
+    expect(result.missingSetup).toEqual(expectedMissing);
+    expect(result.optionalCapabilities.analytics).toMatchObject({configured:false,status:'unavailable'});
+    expect(result.providerStatus.reason).toBe(`Missing ${expectedMissing.join(', ')}.`);
   });
 });
 
