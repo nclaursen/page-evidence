@@ -135,7 +135,11 @@ The MCP tools are `get_site_status`, `find_content_opportunities`, `find_questio
 
 ### Untrusted Search Console query text
 
-Search queries are untrusted third-party text. MCP responses and CLI commands that expose query evidence hide instruction-like queries completely, bound other prompt-shaped queries to 200 characters, add opaque query IDs and safety metadata, and mark affected responses with `untrustedText`. Instruction-like queries are also excluded from query-derived local source and internal-link retrieval terms. This is exposure reduction by a keyword heuristic, not a security boundary: some instructions may be missed and harmless queries may be hidden.
+Search queries are untrusted third-party text. By default, MCP responses and query-printing CLI commands preserve ordinary query text, bound other prompt-shaped queries to 200 characters, and completely hide recognized instruction-like text. The same filtering applies to echoed questions and query/question-derived retrieval terms. Opaque IDs and metadata distinguish hidden queries while preserving their metrics. This keyword heuristic reduces exposure; it is not a security boundary and can miss instructions or hide harmless queries.
+
+All MCP responses carry an `untrustedText` warning covering externally sourced text, including URLs, analytics labels, repository content, and annotations. A warning does not make that text safe; consumers must treat it as data and enforce their own action permissions.
+
+Optional strict mode, `SITE_SIGNAL_QUERY_TEXT_MODE=omit`, hides all query and question text and disables query-derived retrieval terms. It retains IDs and metrics but prevents query-text analysis, text-based topic classification, and query-driven source/link suggestions. Downstream clients must use `queryId`, not placeholders, to distinguish queries. Leave this variable unset (or set it to `heuristic`) for the useful filtered default. The explicit raw-text override below takes precedence over either mode.
 
 Raw snapshots and generated reports remain local and unchanged, so they can contain complete untrusted query text and must not be passed to an AI. An owner can explicitly opt into raw query text in MCP and CLI output with `SITE_SIGNAL_INCLUDE_RAW_QUERY_TEXT=1`; the warning metadata remains present. Set a private `SITE_SIGNAL_QUERY_ID_KEY` to keep opaque HMAC-based query IDs stable across server restarts. Without it, IDs are stable only for the lifetime of one process. Never commit either setting or its value.
 
