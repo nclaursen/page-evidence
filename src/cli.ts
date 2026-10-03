@@ -5,6 +5,7 @@ import {auth,gsc} from './google.js';
 import {config} from './core.js';
 import {actionLog,actionReviewContext,findQuestionOpportunities,pageBrief,pageContext,pageHistory,pageInvestigationContext,pageSegmentContext,questionPageContext,recordAction,report,status,sync} from './service.js';
 import {safeQueryOutput} from './query-safety.js';
+import {cacheStatus,changeDigest,refreshEvidence} from './service.js';
 
 const wait=<T>(promise:Promise<T>)=>Promise.race([promise,new Promise<T>((_,reject)=>setTimeout(()=>reject(Error('Timed out after 15 seconds')),15000))]);
 const windowDays=(args:string[])=>Number(args.find(arg=>arg.startsWith('--days='))?.slice(7)||(args.includes('--90')?90:args.includes('--60')?60:30));
@@ -21,6 +22,9 @@ try{
     try{await wait(analyticsProvider(c).landingEvidence(period));output.checks.analytics=true}catch(error){output.guidance.push(error instanceof EngageProviderError?error.message:'Check the selected analytics provider configuration and read access.')}
     console.log(JSON.stringify(output,null,2));process.exit(output.configured&&output.checks.livePage&&output.checks.gsc&&output.checks.analytics?0:1);
   }else if(command==='sync')console.log(JSON.stringify(await sync(args.includes('--refresh'),windowDays(args)),null,2));
+  else if(command==='digest')console.log(queryJson(await changeDigest(windowDays(args),Number(args.find(arg=>arg.startsWith('--limit='))?.slice(8)||5),args.includes('--refresh'),!args.includes('--preview'))));
+  else if(command==='cache-status')console.log(queryJson(cacheStatus(windowDays(args))));
+  else if(command==='refresh')console.log(queryJson(await refreshEvidence(windowDays(args))));
   else if(command==='report')console.log(await report(args.includes('--refresh'),windowDays(args)));
   else if(command==='page')console.log(queryJson(await pageContext(args[0],undefined,5,windowDays(args))));
   else if(command==='investigate')console.log(queryJson(await pageInvestigationContext(args[0],windowDays(args),args.find(arg=>arg.startsWith('--question='))?.slice(11)),['sourceContext.terms']));
@@ -29,8 +33,8 @@ try{
   else if(command==='history')console.log(JSON.stringify(pageHistory(args[0],windowDays(args),Number(args.find(arg=>arg.startsWith('--limit='))?.slice(8)||6)),null,2));
   else if(command==='segments')console.log(queryJson(await pageSegmentContext(args[0],args[1] as any,10,windowDays(args))));
   else if(command==='questions')console.log(queryJson(await findQuestionOpportunities(windowDays(args),Number(args.find(arg=>arg.startsWith('--limit='))?.slice(8)||30))));
-  else if(command==='actions'){const operation=args.shift();if(operation==='list')console.log(actionLog());else if(operation==='review')console.log(actionReviewContext(args[0]));else{const values:any=kv(args);console.log(recordAction({...values,action_type:values.actionType||values.action_type||'other'}))}}
+  else if(command==='actions'){const operation=args.shift();if(operation==='list')console.log(actionLog());else if(operation==='review')console.log(actionReviewContext(args[0],args.some(arg=>arg.startsWith('--days='))?windowDays(args):undefined));else{const values:any=kv(args);console.log(recordAction({...values,action_type:values.actionType||values.action_type||'other'}))}}
   else if(command==='demo')console.log(JSON.stringify({message:'Site Signal is local-first.'},null,2));
   else if(command==='mcp')await import('./mcp.js');
-  else throw Error('Use: doctor | auth | sync [--days=30|60|90] | report [--days=30|60|90] | page URL [--days=30|60|90] | investigate URL [--days=30|60|90] [--question=text] | question-context URL --question=text [--days=30|60|90] | brief URL [--days=30|60|90] | history URL [--days=30|60|90] [--limit=6] | segments URL country|device|searchAppearance [--days=30|60|90] | questions [--days=30|60|90] [--limit=30] | actions list|review ACTION_ID|create');
+  else throw Error('Use: digest [--days=7|30|60|90] [--limit=5] [--refresh] [--preview] | cache-status [--days=7|30|60|90] | refresh [--days=7|30|60|90] | doctor | auth | sync [--days=7|30|60|90] | report [--days=7|30|60|90] | page URL [--days=7|30|60|90] | investigate URL [--days=7|30|60|90] [--question=text] | question-context URL --question=text [--days=7|30|60|90] | brief URL [--days=7|30|60|90] | history URL [--days=7|30|60|90] [--limit=6] | segments URL country|device|searchAppearance [--days=7|30|60|90] | questions [--days=7|30|60|90] [--limit=30] | actions list|review ACTION_ID|create');
 }catch(error){console.error(error instanceof Error?error.message:error);process.exit(1)}

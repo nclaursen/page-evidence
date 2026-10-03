@@ -40,6 +40,61 @@ afterEach(()=>{
 });
 
 describe('stored history and review evidence',()=>{
+  it('accepts a high-volume seven-day before/after review without downgrading its duration',()=>{
+    const store=new Store(dataDir);
+    store.save('week-before',snapshot('2026-08-26','2026-09-01',100,2000));
+    store.save('week-after',snapshot('2026-09-03','2026-09-09',150,3000));
+    recordAction({id:'sept-edit',url:'https://example.com/page',status:'Implemented',implementation_date:'2026-09-02',baseline_snapshot:'week-before'});
+    const review=actionReviewContext('sept-edit',7);
+    expect(review.windowDays).toBe(7);
+    expect(review.deltas).toMatchObject({clicks:{before:100,after:150,absolute:50,relativePercent:50},impressions:{absolute:1000},ctrPercentagePoints:0,positionChange:0});
+    expect(review.evidenceAssessment).toMatchObject({state:'ready_for_descriptive_review',causalityEstablished:false});
+    store.db.close();
+  });
+
+  it('flags insufficient volume, incomplete coverage and zero-denominator deltas',()=>{
+    const store=new Store(dataDir),before=snapshot('2026-08-26','2026-09-01',0,10);
+    before.coverage.gscTruncated=true;
+    store.save('week-before',before);store.save('week-after',snapshot('2026-09-03','2026-09-09',5,200));
+    recordAction({id:'low',url:'https://example.com/page',status:'Implemented',implementation_date:'2026-09-02'});
+    const review=actionReviewContext('low',7);
+    expect(review.evidenceAssessment.state).toBe('insufficient_evidence');
+    expect(review.evidenceAssessment.reasons.join(' ')).toContain('impressions');
+    expect(review.evidenceAssessment.reasons.join(' ')).toContain('coverage');
+    expect(review.deltas?.clicks.relativePercent).toBeNull();store.db.close();
+  });
+
+  it('includes implemented same-page changes, not proposals, other pages or the reviewed action',()=>{
+    const store=new Store(dataDir);
+    store.save('before',snapshot('2026-08-26','2026-09-01',100,2000));store.save('after',snapshot('2026-09-03','2026-09-09',150,3000));
+    for(const [id,url,status]of [['edit','https://example.com/page','Implemented'],['other','https://example.com/page?utm_source=test','Reviewed'],['proposal','https://example.com/page','Proposed'],['elsewhere','https://example.com/other','Implemented']])recordAction({id,url,status,implementation_date:'2026-09-02'});
+    const review=actionReviewContext('edit',7);
+    expect(review.overlappingChanges.map((item:any)=>item.id)).toEqual(['other']);
+    expect(review.evidenceAssessment.state).toBe('review_with_caution');store.db.close();
+  });
+
+  it('rejects a pinned baseline from another profile instead of leaking or substituting it',()=>{
+    const store=new Store(dataDir),foreign=snapshot('2026-08-26','2026-09-01',100,2000);foreign.profile='another-profile';
+    store.save('foreign',foreign);store.save('valid',snapshot('2026-08-26','2026-09-01',10,100));store.save('after',snapshot('2026-09-03','2026-09-09',15,150));
+    recordAction({id:'edit',url:'https://example.com/page',status:'Implemented',implementation_date:'2026-09-02',baseline_snapshot:'foreign'});
+    const review=actionReviewContext('edit',7);
+    expect(review.evidence.baseline).toBeNull();expect(review.deltas).toBeNull();expect(review.gaps.join(' ')).toContain('Pinned baseline');store.db.close();
+  });
+
+  it('does not mix a pinned monthly baseline with a weekly review',()=>{
+    const store=new Store(dataDir);store.save('month',snapshot('2026-08-03','2026-09-01',100,2000));store.save('week-after',snapshot('2026-09-03','2026-09-09',100,2000));
+    recordAction({id:'edit',url:'https://example.com/page',status:'Implemented',implementation_date:'2026-09-02',baseline_snapshot:'month'});
+    expect(actionReviewContext('edit',7).deltas).toBeNull();store.db.close();
+  });
+
+  it('requires a valid edit date and a wholly post-edit observation',()=>{
+    const store=new Store(dataDir);store.save('before',snapshot('2026-08-26','2026-09-01',100,2000));store.save('overlap',snapshot('2026-08-30','2026-09-05',100,2000));
+    recordAction({id:'edit',url:'https://example.com/page',status:'Implemented',implementation_date:'2026-09-02'});
+    const review=actionReviewContext('edit',7);expect(review.evidence.overlapping).not.toBeNull();expect(review.evidence.after).toBeNull();expect(review.deltas).toBeNull();
+    recordAction({id:'invalid',url:'https://example.com/page',status:'Implemented',implementation_date:'2026-02-30'});
+    expect(actionReviewContext('invalid',7).evidenceAssessment.reasons.join(' ')).toContain('valid implementation date');store.db.close();
+  });
+
   it('returns comparable stored page observations and typed annotations',()=>{
     const store=new Store(dataDir);
     store.save('older',snapshot('2025-11-01','2025-11-30',2,70));

@@ -11,7 +11,7 @@ Site Signal helps answer a deliberately narrow question: *which pages are worth 
 - Fetches provider-specific page evidence separately from GA4, Matomo, or Umbraco Engage. Acquisition evidence is available where the provider exposes it.
 - Normalizes URLs before comparing sources; retains the underlying source scope.
 - Labels every report and recommended investigation as `ready`, `incomplete_coverage`, `too_fresh`, or `insufficient_evidence`, with the reason shown alongside it.
-- Supports 30-, 60-, and 90-day comparisons, labels pages without a meaningful baseline as `maturing`, and offers bounded country, device, and search-appearance diagnostics.
+- Supports 7-, 30-, 60-, and 90-day comparisons, labels pages without a meaningful baseline as `maturing`, and offers bounded country, device, and search-appearance diagnostics.
 - Returns optional, bounded local source context for a selected page or question when a repository path is configured; a chat client can then assess answer coverage and propose changes.
 - Returns a chat-first page brief and keeps a local, explicit action/review log.
 - Returns comparable locally stored page history and before/after review evidence for recorded changes without claiming causality.
@@ -131,7 +131,38 @@ For a local MCP host, run:
 site-signal mcp
 ```
 
-The MCP tools are `get_site_status`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
+The MCP tools are `get_site_status`, `get_change_digest`, `get_cache_status`, `refresh_site_evidence`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
+
+### Change digest and cache controls
+
+`get_change_digest` answers “what changed since my last check?” using page-level GSC evidence. The first call saves a local baseline and returns `status: baseline_needed`; subsequent calls compare against that check and advance it. Checkpoints are separate from snapshots, scoped by profile, property, provider, window and relevant settings, and survive server restarts. Use `advanceCheckpoint: false` to preview without advancing the baseline, and `refresh: true` to fetch fresh evidence first. `windowDays` accepts 7, 30, 60 or 90; `limit` defaults to 5 per group (maximum 20).
+
+The digest returns gains, declines, low-baseline/maturing pages, missing pages, current and previous measurement issues, counts, timestamps and the compared periods. A signal needs at least 100 impressions in either check, a mature baseline, and either a click change of at least 3 and 20%, or an impression change of at least 25 and 20%. Click movement takes priority when both qualify; conflicting directions are labelled. These are transparent triage thresholds, not statistical significance. A missing GSC row is not treated as zero traffic. Rolling windows may overlap; movements are not causal claims. This first version does not fetch or summarize emerging queries.
+
+`get_cache_status` shows snapshot fetch time, age, expiry and whether it is stale, plus this process’s profile-scoped query-cache counts. It does not call external providers. Snapshots are reused for up to 24 hours; query rows for up to one hour, bounded to 50 cache entries across profiles. Expired entries are refetched on demand. Query evidence includes its own freshness metadata separately from the page snapshot. An explicit historical snapshot remains historical rather than being automatically replaced.
+
+`refresh_site_evidence` refetches the selected window and invalidates the current profile’s in-process query cache; query rows reload when next requested. Existing `find_content_opportunities(refresh: true)` and CLI `sync --refresh` also invalidate that query cache. Historical snapshots, actions and digest checkpoints are retained. This does not invalidate another running MCP process’s query cache. Provider failures are reported, not silently replaced with stale evidence.
+
+CLI equivalents (using your usual private environment):
+
+```sh
+site-signal digest --days=30 --limit=5
+site-signal digest --days=30 --refresh --preview
+site-signal cache-status --days=30
+site-signal refresh --days=30
+```
+
+Product ideas and follow-ups live in [the backlog](docs/backlog.md).
+
+### Seven-day windows and content-change reviews
+
+Use `windowDays: 7` in MCP or `--days=7` in CLI for a full seven-day lookback. With `REPORTING_LAG_DAYS=3`, the three most recent complete days are excluded; for example, on October 3 the current week is September 23–29 and the prior week September 16–22. Existing defaults remain unchanged. Seven days is not automatically low-confidence: volume, coverage and comparability determine descriptive readiness. The lifecycle tool continues its established 30/60/90-day trend view.
+
+`get_action_review_context(actionId, windowDays?)` and `site-signal actions review ACTION_ID --days=7` return click and impression deltas (absolute and relative), CTR percentage-point change, position change, other implemented/reviewed same-page actions within the comparison span, and an `evidenceAssessment`. Zero baselines have no relative percentage. Adequate observations permit descriptive review, not causal attribution or statistical significance.
+
+The baseline must be wholly before the implementation date and the after-period wholly after it, with equal lengths and matching profile/provider. Pinned baselines are validated rather than silently substituted; a pinned 30-day baseline cannot be used for a 7-day comparison. A new seven-day review needs stored seven-day observations. Missing history is not automatically backfilled. Assessment checks volume in both periods against `MINIMUM_BASELINE_IMPRESSIONS`, coverage/readiness and reporting lag. Other recorded changes are caveats, not proof of a confounding effect. Unrecorded or site-wide changes are not detected.
+
+For a September 2 edit, a stored August 26–September 1 baseline and September 3–9 after-period can support an initial weekly comparison once the reporting delay has passed. A latest-week lookback alone does not isolate the effect of that edit.
 
 ### Untrusted Search Console query text
 
@@ -145,11 +176,11 @@ Raw snapshots and generated reports remain local and unchanged, so they can cont
 
 ### How page query rows are fetched
 
-Search Console sorts query rows by clicks and orders ties arbitrarily; it has no sort parameter and does not guarantee all rows. A small `rowLimit` therefore returns an arbitrary sample of zero-click queries. For each page and period, Site Signal makes one request for up to 5000 query rows, ranks them locally by impressions, and returns only the top rows. `get_query_entry_exit` computes entered, exited, and retained on the fetched rows, returns counts and the highest-impression rows of each group (20 by default, `limit` up to 50, preserving full metric rows and baseline labels), and includes fetched-row coverage against the page total. If the 5000-row cap is reached, the response says so. Entered and exited mean absent from the fetched rows; they do not show that a query started or stopped receiving impressions. Fetches are reused within one running process, so repeat questions about the same page and period do not call the API again.
+Search Console sorts query rows by clicks and orders ties arbitrarily; it has no sort parameter and does not guarantee all rows. A small `rowLimit` therefore returns an arbitrary sample of zero-click queries. For each page and period, Site Signal makes one request for up to 5000 query rows, ranks them locally by impressions, and returns only the top rows. `get_query_entry_exit` computes entered, exited, and retained on the fetched rows, returns counts and the highest-impression rows of each group (20 by default, `limit` up to 50, preserving full metric rows and baseline labels), and includes fetched-row coverage against the page total. If the 5000-row cap is reached, the response says so. Entered and exited mean absent from the fetched rows; they do not show that a query started or stopped receiving impressions. Fetches are reused for up to one hour within one running process and profile, so repeat questions about the same page and period do not call the API again until expiry or manual refresh.
 
 `find_question_opportunities` is a site-wide, bounded GSC query-and-page view for sparse question-like queries. It uses transparent Danish and English text patterns and can include one-impression, zero-click rows. It returns measured Google queries only: it cannot identify questions asked in ChatGPT or another answer engine, and it does not recommend a content action.
 
-`get_page_investigation_context` is the general chat entry point for “inspect this URL over 30, 60, or 90 days.” It combines the selected URL's GSC and provider-scoped analytics evidence with bounded query examples and optional local source headings/excerpts. `get_question_page_context` does the same for a selected question and landing page. Neither tool judges answer quality or writes copy: a chat client does that from the returned evidence.
+`get_page_investigation_context` is the general chat entry point for “inspect this URL over 7, 30, 60, or 90 days.” It combines the selected URL's GSC and provider-scoped analytics evidence with bounded query examples and optional local source headings/excerpts. `get_question_page_context` does the same for a selected question and landing page. Neither tool judges answer quality or writes copy: a chat client does that from the returned evidence.
 
 `get_page_history` reads up to 12 matching observations already stored locally for one page, profile, analytics provider, and comparison window. It does not backfill missing history. Local actions can be typed as content, technical, campaign, tracking, external, or other changes. `get_action_review_context` retrieves a recorded baseline, a clean post-implementation observation when one exists, and any period that overlaps the implementation date. These are review aids, not causal attribution.
 
