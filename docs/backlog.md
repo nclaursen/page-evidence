@@ -2,7 +2,7 @@
 
 Code audit: 2026-10-03. Built means implemented, not necessarily loaded by running MCP clients.
 
-## Built — included in the feature-branch release
+## Built — integrated into main
 
 - **Change digest — built.** `get_change_digest` compares page evidence against a saved check-in, with gains, declines, maturity gates and measurement warnings. First use establishes a baseline. Rolling windows are not independent periods and do not establish causality. Implementation: `src/digest.ts`, `src/service.ts`; regression tests: `test/digest-cache.test.ts`.
 - **Evidence freshness and refresh controls — built.** Fetch timestamps, age, automatic cache expiry, profile-scoped query caching, `get_cache_status` and `refresh_site_evidence`. Historical snapshots and action records remain intact.
@@ -11,7 +11,7 @@ Code audit: 2026-10-03. Built means implemented, not necessarily loaded by runni
 
 ## Rollout — pending client reconnect
 
-- Code is included on the existing `codex/query-safety-followup` branch, not a main-branch merge or package publication.
+- Code from `codex/query-safety-followup` is integrated into `main`. This is not a package publication; running MCP clients still need to reconnect.
 - Reconnect the relevant MCP clients to load the new tools; the currently connected clients still expose the older tool list.
 - After reconnecting, establish a real digest baseline for the intended profile/window and exercise refresh/review. No live baseline or September 2 impact assessment has been performed in this work.
 - Verification: 76 synthetic tests, TypeScript build, and an actual isolated MCP-process smoke test exposing all 19 tools and the weekly review schema passed. Record subsequent live findings before expanding features.
