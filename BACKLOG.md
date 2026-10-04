@@ -1,8 +1,8 @@
-# Site Signal backlog
+# Page Evidence backlog
 
-This is a decision backlog, not a feature roadmap. Site Signal exists to answer: **what page should I investigate next, why, and what can the data not prove?**
+This is a decision backlog, not a feature roadmap. Page Evidence exists to answer: **what page should I investigate next, why, and what can the data not prove?**
 
-An item belongs here only if it makes that decision more reliable, makes a deliberate change easier to review, or prevents an avoidable measurement mistake. Everything remains local-first and read-only: Site Signal never publishes or changes a site, analytics property, or external service.
+An item belongs here only if it makes that decision more reliable, makes a deliberate change easier to review, or prevents an avoidable measurement mistake. Everything remains local-first and read-only: Page Evidence never publishes or changes a site, analytics property, or external service.
 
 ## Product boundary
 
@@ -69,9 +69,9 @@ The tool must not automatically recommend a new page. Before a candidate becomes
 
 **Status:** pending local configuration; no code change is needed.
 
-**Validated by the first live MCP run (2026-09-15):** page-level GSC and GA4 evidence worked, but `get_repository_context` correctly returned that `SITE_SIGNAL_REPOSITORY_PATH` was not configured. The client had to map the selected URLs to source files manually.
+**Validated by the first live MCP run (2026-09-15):** page-level GSC and GA4 evidence worked, but `get_repository_context` correctly returned that `PAGE_EVIDENCE_REPOSITORY_PATH` was not configured. The client had to map the selected URLs to source files manually.
 
-Set `SITE_SIGNAL_REPOSITORY_PATH` to the site's local repository. Optionally set `SITE_SIGNAL_SITEMAP_URL` once its canonical URL has been confirmed. These values stay in the private environment file, never in Git.
+Set `PAGE_EVIDENCE_REPOSITORY_PATH` to the site's local repository. Optionally set `PAGE_EVIDENCE_SITEMAP_URL` once its canonical URL has been confirmed. These values stay in the private environment file, never in Git.
 
 **Done when:** `get_repository_context` maps a known page to its actual source file, and `get_internal_link_context` returns only traceable candidates.
 

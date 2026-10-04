@@ -34,7 +34,7 @@ try{
   else if(command==='segments')console.log(queryJson(await pageSegmentContext(args[0],args[1] as any,10,windowDays(args))));
   else if(command==='questions')console.log(queryJson(await findQuestionOpportunities(windowDays(args),Number(args.find(arg=>arg.startsWith('--limit='))?.slice(8)||30))));
   else if(command==='actions'){const operation=args.shift();if(operation==='list')console.log(actionLog());else if(operation==='review')console.log(actionReviewContext(args[0],args.some(arg=>arg.startsWith('--days='))?windowDays(args):undefined));else{const values:any=kv(args);console.log(recordAction({...values,action_type:values.actionType||values.action_type||'other'}))}}
-  else if(command==='demo')console.log(JSON.stringify({message:'Site Signal is local-first.'},null,2));
+  else if(command==='demo')console.log(JSON.stringify({message:'Page Evidence is local-first.'},null,2));
   else if(command==='mcp')await import('./mcp.js');
   else throw Error('Use: digest [--days=7|30|60|90] [--limit=5] [--refresh] [--preview] | cache-status [--days=7|30|60|90] | refresh [--days=7|30|60|90] | doctor | auth | sync [--days=7|30|60|90] | report [--days=7|30|60|90] | page URL [--days=7|30|60|90] | investigate URL [--days=7|30|60|90] [--question=text] | question-context URL --question=text [--days=7|30|60|90] | brief URL [--days=7|30|60|90] | history URL [--days=7|30|60|90] [--limit=6] | segments URL country|device|searchAppearance [--days=7|30|60|90] | questions [--days=7|30|60|90] [--limit=30] | actions list|review ACTION_ID|create');
 }catch(error){console.error(error instanceof Error?error.message:error);process.exit(1)}

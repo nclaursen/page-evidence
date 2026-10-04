@@ -1,16 +1,16 @@
 # Analytics-provider implementation notes
 
-This document records Site Signal's first-class analytics-provider design without turning it into a multi-tenant or hosted service.
+This document records Page Evidence's first-class analytics-provider design without turning it into a multi-tenant or hosted service.
 
 ## Operating model
 
-One Site Signal process serves one named site profile:
+One Page Evidence process serves one named site profile:
 
 | MCP entry | Example analytics provider | Private state directory |
 | --- | --- | --- |
-| `site-signal-niels` | GA4 | `~/.site-signal/niels` |
-| `site-signal-umbraco` | Matomo | `~/.site-signal/umbraco` |
-| `site-signal-engage` | Umbraco Engage | `~/.site-signal/engage` |
+| `page-evidence-niels` | GA4 | `~/.site-signal/niels` |
+| `page-evidence-umbraco` | Matomo | `~/.site-signal/umbraco` |
+| `page-evidence-engage` | Umbraco Engage | `~/.site-signal/engage` |
 
 Both entries run the same published CLI/MCP package. Each has its own local environment file and data directory. A profile must never share a snapshot database with another profile: the current snapshot identifier is period-based, so shared state could otherwise mix sites.
 
@@ -60,25 +60,25 @@ The internal format is intentionally narrow. It supports page context and report
 The public package uses provider selection and profile isolation. All values below are local-only and must stay in a private environment file.
 
 ```env
-SITE_SIGNAL_PROFILE=niels
-SITE_SIGNAL_DATA_DIR=/absolute/path/to/private/site-signal/niels
+PAGE_EVIDENCE_PROFILE=niels
+PAGE_EVIDENCE_DATA_DIR=/absolute/path/to/private/page-evidence/niels
 ANALYTICS_PROVIDER=ga4
 GA4_PROPERTY_ID=123456789
 
-# Or, for another Site Signal MCP entry:
-SITE_SIGNAL_PROFILE=umbraco
-SITE_SIGNAL_DATA_DIR=/absolute/path/to/private/site-signal/umbraco
+# Or, for another Page Evidence MCP entry:
+PAGE_EVIDENCE_PROFILE=umbraco
+PAGE_EVIDENCE_DATA_DIR=/absolute/path/to/private/page-evidence/umbraco
 ANALYTICS_PROVIDER=matomo
 MATOMO_URL=https://analytics.example.com/
 MATOMO_SITE_ID=1
 MATOMO_TOKEN_AUTH=replace-with-read-only-token
 
 # Or, for an Umbraco Engage 17/18 profile:
-SITE_SIGNAL_PROFILE=engage
-SITE_SIGNAL_DATA_DIR=/absolute/path/to/private/site-signal/engage
+PAGE_EVIDENCE_PROFILE=engage
+PAGE_EVIDENCE_DATA_DIR=/absolute/path/to/private/page-evidence/engage
 ANALYTICS_PROVIDER=engage
 UMBRACO_BASE_URL=https://cms.example.com/
-UMBRACO_CLIENT_ID=site-signal
+UMBRACO_CLIENT_ID=page-evidence
 UMBRACO_CLIENT_SECRET=replace-with-api-user-secret
 ```
 
@@ -120,7 +120,7 @@ Do not add support for optional Matomo modules (including AI-referrer reporting)
 
 Use a dedicated API user on a consented test instance. Before treating the adapter as verified for a specific installation:
 
-1. Confirm `site-signal doctor` succeeds against both the v17 and v18 installations in scope and reports the detected package version.
+1. Confirm `page-evidence doctor` succeeds against both the v17 and v18 installations in scope and reports the detected package version.
 2. Confirm the user has Engage section access and the minimum permission required by the analytics query endpoint, without broader write permissions.
 3. Compare one fixed date range with the Engage backoffice for page views, page sessions, page visitors, bounce rate, average time, engaged time, and goal completions.
 4. Verify the installation's reporting timezone, processing lag, pagination totals, and `reportsExist` behaviour.

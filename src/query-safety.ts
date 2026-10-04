@@ -15,9 +15,9 @@ export function isInstructionLike(query:string){return query.length>LONG_PASTED_
 export function isPromptShaped(query:string){const text=query.trim().toLocaleLowerCase(),words=text.split(/\s+/).filter(Boolean);return words.length>=12||/^i am\b/.test(text)||text.includes('context:')||text.includes('question:')||text.startsWith('#')}
 export function classifyQuery(query:string):QueryKind{if(isInstructionLike(query))return'instruction-like';if(!isPromptShaped(query))return null;if(toolingMarkers.test(query))return'tooling';return'buyer-like'}
 
-function includeRawQueryText(){return process.env.SITE_SIGNAL_INCLUDE_RAW_QUERY_TEXT==='1'}
-export function queryTextMode(){return includeRawQueryText()?'raw':process.env.SITE_SIGNAL_QUERY_TEXT_MODE==='omit'?'omit':'heuristic'}
-function queryId(query:string){const configured=process.env.SITE_SIGNAL_QUERY_ID_KEY?.trim(),key=configured||runtimeQueryIdKey;return createHmac('sha256',key).update(query).digest('hex').slice(0,12)}
+function includeRawQueryText(){return (process.env.PAGE_EVIDENCE_INCLUDE_RAW_QUERY_TEXT||process.env.SITE_SIGNAL_INCLUDE_RAW_QUERY_TEXT)==='1'}
+export function queryTextMode(){return includeRawQueryText()?'raw':(process.env.PAGE_EVIDENCE_QUERY_TEXT_MODE||process.env.SITE_SIGNAL_QUERY_TEXT_MODE)==='omit'?'omit':'heuristic'}
+function queryId(query:string){const configured=(process.env.PAGE_EVIDENCE_QUERY_ID_KEY||process.env.SITE_SIGNAL_QUERY_ID_KEY)?.trim(),key=configured||runtimeQueryIdKey;return createHmac('sha256',key).update(query).digest('hex').slice(0,12)}
 
 export function safeQueryText(query:string){
   const queryKind=classifyQuery(query),queryLength=query.length,raw=includeRawQueryText();

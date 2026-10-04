@@ -11,7 +11,7 @@ const out=(value:unknown)=>encoded(safeQueryOutput(value));
 const queryOut=(value:unknown,extraFields:string[]=[])=>encoded(safeQueryOutput(value,extraFields,true));
 
 serveStdio(()=>{
-  const server=new McpServer({name:'site-signal',version:'0.8.0'});
+  const server=new McpServer({name:'page-evidence',version:'0.8.0'});
   const windowDays=z.union([z.literal(7),z.literal(30),z.literal(60),z.literal(90)]).optional();
   const action={actionId:z.string().optional(),url:z.string().url(),description:z.string(),hypothesis:z.string(),actionType:z.enum(['content_update','technical_change','campaign','tracking_change','external_event','other']).optional(),status:z.enum(['Proposed','Accepted','Dismissed','Implemented','Reviewed']),implementationDate:z.string().optional(),baselineSnapshot:z.string().optional(),reviewDate:z.string().optional(),outcomeNotes:z.string().optional()};
 

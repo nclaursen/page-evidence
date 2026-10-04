@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   release:
-    if: github.repository == 'nclaursen/site-signal'
+    if: github.repository == 'nclaursen/page-evidence'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,9 +39,9 @@ jobs:
 
           notes=".github/release-notes/$tag.md"
           if [[ -f "$notes" ]]; then
-            gh release create "$tag" --verify-tag --title "Site Signal $tag" --notes-file "$notes"
+            gh release create "$tag" --verify-tag --title "Page Evidence $tag" --notes-file "$notes"
           else
-            gh release create "$tag" --verify-tag --title "Site Signal $tag" --generate-notes
+            gh release create "$tag" --verify-tag --title "Page Evidence $tag" --generate-notes
           fi
 
           echo "Published release $tag." >> "$GITHUB_STEP_SUMMARY"

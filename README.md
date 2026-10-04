@@ -1,8 +1,10 @@
-# Site Signal
+# Page Evidence
+
+Previously called Site Signal.
 
 **A local-first Google Search Console + GA4, Matomo, or Umbraco Engage content-opportunity CLI and stdio MCP server.**
 
-Site Signal helps answer a deliberately narrow question: *which pages are worth investigating next, what changed, and what can the data not prove?* It saves reports and snapshots locally, uses no model API, and never changes a website or analytics property.
+Page Evidence helps answer a deliberately narrow question: *which pages are worth investigating next, what changed, and what can the data not prove?* It saves reports and snapshots locally, uses no model API, and never changes a website or analytics property.
 
 ## What it does
 
@@ -34,15 +36,15 @@ Requires Node.js 20+.
 Clone the repository and run it locally:
 
 ```sh
-git clone https://github.com/nclaursen/site-signal.git
-cd site-signal
+git clone https://github.com/nclaursen/page-evidence.git
+cd page-evidence
 npm install
 cp .env.example .env
 npm run build
 npm link
 ```
 
-After the first npm release, `npm install -g site-signal` will also be supported.
+After the first npm release, `npm install -g page-evidence` will also be supported.
 
 ## Configure Google access
 
@@ -52,52 +54,52 @@ After the first npm release, `npm install -g site-signal` will also be supported
 4. Put its values and one analytics-provider configuration in a local `.env`:
 
 ```env
-SITE_SIGNAL_PROFILE=example
+PAGE_EVIDENCE_PROFILE=example
 SITE_DOMAIN=example.com
 GSC_PROPERTY=sc-domain:example.com
 ANALYTICS_PROVIDER=ga4
 GA4_PROPERTY_ID=123456789
 GOOGLE_OAUTH_CLIENT_ID=1234567890-example.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=replace-me
-SITE_SIGNAL_DATA_DIR=/absolute/path/to/private/site-signal-data/example
+PAGE_EVIDENCE_DATA_DIR=/absolute/path/to/private/page-evidence-data/example
 ```
 
 `GA4_PROPERTY_ID` is the numeric reporting property ID, **not** a `G-...` Measurement ID. For Matomo, use `ANALYTICS_PROVIDER=matomo` plus `MATOMO_URL`, `MATOMO_SITE_ID`, and a read-only `MATOMO_TOKEN_AUTH`; see [.env.example](.env.example). For Umbraco Engage 17 or 18, use `ANALYTICS_PROVIDER=engage` plus `UMBRACO_BASE_URL`, `UMBRACO_CLIENT_ID`, and `UMBRACO_CLIENT_SECRET` for a dedicated API user. Tokens, cache, SQLite database, and reports default to `~/.site-signal`, outside your repository.
 
-The Engage connector calls the Umbraco Management API directly. It authenticates through `/umbraco/management/api/v1/security/back-office/token`, checks `/umbraco/engage/management/api/v1/package`, and reads `/umbraco/engage/management/api/v1/analytics/query`. The API user needs Engage section access and the minimum analytics read permission. `site-signal doctor` checks authentication, permissions, the enabled Engage package, and the supported major version before sync.
+The Engage connector calls the Umbraco Management API directly. It authenticates through `/umbraco/management/api/v1/security/back-office/token`, checks `/umbraco/engage/management/api/v1/package`, and reads `/umbraco/engage/management/api/v1/analytics/query`. The API user needs Engage section access and the minimum analytics read permission. `page-evidence doctor` checks authentication, permissions, the enabled Engage package, and the supported major version before sync.
 
 Engage evidence includes page views, page sessions, page visitors, bounce rate, average time on page, average engaged time on page, and configured goal completions when those columns are returned. A missing column is reported as unavailable, not zero. This integration intentionally excludes acquisition-source evidence, visitor profiles, heatmaps and scroll maps, write operations, and reporting regeneration.
 
 ```sh
-site-signal auth
-site-signal doctor
-site-signal sync
-site-signal report
-site-signal brief https://example.com/page/ --90
-site-signal history https://example.com/page/ --days=30 --limit=6
-site-signal questions --days=90 --limit=30
-site-signal investigate https://example.com/page/ --days=60
-site-signal question-context https://example.com/page/ --question="How do I solve this?" --days=90
-site-signal segments https://example.com/page/ device
-site-signal actions list
-site-signal actions review ACTION_ID
+page-evidence auth
+page-evidence doctor
+page-evidence sync
+page-evidence report
+page-evidence brief https://example.com/page/ --90
+page-evidence history https://example.com/page/ --days=30 --limit=6
+page-evidence questions --days=90 --limit=30
+page-evidence investigate https://example.com/page/ --days=60
+page-evidence question-context https://example.com/page/ --question="How do I solve this?" --days=90
+page-evidence segments https://example.com/page/ device
+page-evidence actions list
+page-evidence actions review ACTION_ID
 ```
 
 For optional local repository and outcome evidence, add these only to your private env file:
 
 ```env
-SITE_SIGNAL_REPOSITORY_PATH=/absolute/path/to/site-repository
-SITE_SIGNAL_SITEMAP_URL=https://example.com/sitemap.xml
+PAGE_EVIDENCE_REPOSITORY_PATH=/absolute/path/to/site-repository
+PAGE_EVIDENCE_SITEMAP_URL=https://example.com/sitemap.xml
 GA4_OUTCOME_EVENT_NAMES=generate_lead,form_submit
 ```
 
 Repository and sitemap context remain opt-in. GA4 outcome events are returned as selected-period, property-level event counts; they are never attributed to individual Search Console queries.
 
-The OAuth flow requests `webmasters.readonly` and, only for GA4, `analytics.readonly`. GSC dates use Pacific time; GA4 uses the property timezone. Engage requests use explicit UTC date boundaries, while the reporting timezone and processing delay remain properties of the configured Engage installation. Verify provider behaviour with `site-signal doctor` and a fixed-range sync before relying on comparisons.
+The OAuth flow requests `webmasters.readonly` and, only for GA4, `analytics.readonly`. GSC dates use Pacific time; GA4 uses the property timezone. Engage requests use explicit UTC date boundaries, while the reporting timezone and processing delay remain properties of the configured Engage installation. Verify provider behaviour with `page-evidence doctor` and a fixed-range sync before relying on comparisons.
 
 ## Profiles and MCP
 
-One running Site Signal MCP server represents one site profile and one analytics provider. To use GA4, Matomo, or Engage for different sites, run the same built executable as separate named MCP entries, each with its own private env file and `SITE_SIGNAL_DATA_DIR`. Do not share a data directory between profiles.
+One running Page Evidence MCP server represents one site profile and one analytics provider. To use GA4, Matomo, or Engage for different sites, run the same built executable as separate named MCP entries, each with its own private env file and `PAGE_EVIDENCE_DATA_DIR`. Do not share a data directory between profiles.
 
 Every snapshot, report, page-context result, and MCP response identifies its profile and analytics provider. This prevents Matomo visits from being presented as GA4 sessions and prevents snapshots from different sites being mixed.
 
@@ -106,7 +108,7 @@ Every snapshot, report, page-context result, and MCP response identifies its pro
 The public repository is the canonical codebase. Keep your credentials in a private env file outside the clone, then run the public clone against that file:
 
 ```sh
-cd site-signal
+cd page-evidence
 git pull --ff-only
 npm install
 npm run build
@@ -116,19 +118,19 @@ node --env-file=/secure/path/secret.env dist/cli.js doctor
 For a local MCP configuration, run the same built executable with the same private env file:
 
 ```sh
-node --env-file=/secure/path/secret.env /absolute/path/to/site-signal/dist/cli.js mcp
+node --env-file=/secure/path/secret.env /absolute/path/to/page-evidence/dist/cli.js mcp
 ```
 
-This keeps one codebase for you and everyone else. Do not copy your env file, OAuth token, snapshots, or reports into the repository. If you previously used `PRIVATE_SITE_DATA_DIR`, Site Signal accepts it as a legacy alias so an existing private data directory and OAuth token can be reused; use `SITE_SIGNAL_DATA_DIR` for new setups.
+This keeps one codebase for you and everyone else. Do not copy your env file, OAuth token, snapshots, or reports into the repository. If you previously used `PRIVATE_SITE_DATA_DIR`, Page Evidence accepts it as a legacy alias so an existing private data directory and OAuth token can be reused; use `PAGE_EVIDENCE_DATA_DIR` for new setups.
 
 ## Demo and MCP
 
-Run `site-signal demo` for a synthetic output example—no credentials required. See [fixtures/demo-report.md](fixtures/demo-report.md).
+Run `page-evidence demo` for a synthetic output example—no credentials required. See [fixtures/demo-report.md](fixtures/demo-report.md).
 
 For a local MCP host, run:
 
 ```sh
-site-signal mcp
+page-evidence mcp
 ```
 
 The MCP tools are `get_site_status`, `get_change_digest`, `get_cache_status`, `refresh_site_evidence`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
@@ -146,10 +148,10 @@ The digest returns gains, declines, low-baseline/maturing pages, missing pages, 
 CLI equivalents (using your usual private environment):
 
 ```sh
-site-signal digest --days=30 --limit=5
-site-signal digest --days=30 --refresh --preview
-site-signal cache-status --days=30
-site-signal refresh --days=30
+page-evidence digest --days=30 --limit=5
+page-evidence digest --days=30 --refresh --preview
+page-evidence cache-status --days=30
+page-evidence refresh --days=30
 ```
 
 Product ideas and follow-ups live in [the backlog](docs/backlog.md).
@@ -158,7 +160,7 @@ Product ideas and follow-ups live in [the backlog](docs/backlog.md).
 
 Use `windowDays: 7` in MCP or `--days=7` in CLI for a full seven-day lookback. With `REPORTING_LAG_DAYS=3`, the three most recent complete days are excluded; for example, on October 3 the current week is September 23–29 and the prior week September 16–22. Existing defaults remain unchanged. Seven days is not automatically low-confidence: volume, coverage and comparability determine descriptive readiness. The lifecycle tool continues its established 30/60/90-day trend view.
 
-`get_action_review_context(actionId, windowDays?)` and `site-signal actions review ACTION_ID --days=7` return click and impression deltas (absolute and relative), CTR percentage-point change, position change, other implemented/reviewed same-page actions within the comparison span, and an `evidenceAssessment`. Zero baselines have no relative percentage. Adequate observations permit descriptive review, not causal attribution or statistical significance.
+`get_action_review_context(actionId, windowDays?)` and `page-evidence actions review ACTION_ID --days=7` return click and impression deltas (absolute and relative), CTR percentage-point change, position change, other implemented/reviewed same-page actions within the comparison span, and an `evidenceAssessment`. Zero baselines have no relative percentage. Adequate observations permit descriptive review, not causal attribution or statistical significance.
 
 The baseline must be wholly before the implementation date and the after-period wholly after it, with equal lengths and matching profile/provider. Pinned baselines are validated rather than silently substituted; a pinned 30-day baseline cannot be used for a 7-day comparison. A new seven-day review needs stored seven-day observations. Missing history is not automatically backfilled. Assessment checks volume in both periods against `MINIMUM_BASELINE_IMPRESSIONS`, coverage/readiness and reporting lag. Other recorded changes are caveats, not proof of a confounding effect. Unrecorded or site-wide changes are not detected.
 
@@ -170,13 +172,13 @@ Search queries are untrusted third-party text. By default, MCP responses and que
 
 All MCP responses carry an `untrustedText` warning covering externally sourced text, including URLs, analytics labels, repository content, and annotations. A warning does not make that text safe; consumers must treat it as data and enforce their own action permissions.
 
-Optional strict mode, `SITE_SIGNAL_QUERY_TEXT_MODE=omit`, hides all query and question text and disables query-derived retrieval terms. It retains IDs and metrics but prevents query-text analysis, text-based topic classification, and query-driven source/link suggestions. Downstream clients must use `queryId`, not placeholders, to distinguish queries. Leave this variable unset (or set it to `heuristic`) for the useful filtered default. The explicit raw-text override below takes precedence over either mode.
+Optional strict mode, `PAGE_EVIDENCE_QUERY_TEXT_MODE=omit`, hides all query and question text and disables query-derived retrieval terms. It retains IDs and metrics but prevents query-text analysis, text-based topic classification, and query-driven source/link suggestions. Downstream clients must use `queryId`, not placeholders, to distinguish queries. Leave this variable unset (or set it to `heuristic`) for the useful filtered default. The explicit raw-text override below takes precedence over either mode.
 
-Raw snapshots and generated reports remain local and unchanged, so they can contain complete untrusted query text and must not be passed to an AI. An owner can explicitly opt into raw query text in MCP and CLI output with `SITE_SIGNAL_INCLUDE_RAW_QUERY_TEXT=1`; the warning metadata remains present. Set a private `SITE_SIGNAL_QUERY_ID_KEY` to keep opaque HMAC-based query IDs stable across server restarts. Without it, IDs are stable only for the lifetime of one process. Never commit either setting or its value.
+Raw snapshots and generated reports remain local and unchanged, so they can contain complete untrusted query text and must not be passed to an AI. An owner can explicitly opt into raw query text in MCP and CLI output with `PAGE_EVIDENCE_INCLUDE_RAW_QUERY_TEXT=1`; the warning metadata remains present. Set a private `PAGE_EVIDENCE_QUERY_ID_KEY` to keep opaque HMAC-based query IDs stable across server restarts. Without it, IDs are stable only for the lifetime of one process. Never commit either setting or its value.
 
 ### How page query rows are fetched
 
-Search Console sorts query rows by clicks and orders ties arbitrarily; it has no sort parameter and does not guarantee all rows. A small `rowLimit` therefore returns an arbitrary sample of zero-click queries. For each page and period, Site Signal makes one request for up to 5000 query rows, ranks them locally by impressions, and returns only the top rows. `get_query_entry_exit` computes entered, exited, and retained on the fetched rows, returns counts and the highest-impression rows of each group (20 by default, `limit` up to 50, preserving full metric rows and baseline labels), and includes fetched-row coverage against the page total. If the 5000-row cap is reached, the response says so. Entered and exited mean absent from the fetched rows; they do not show that a query started or stopped receiving impressions. Fetches are reused for up to one hour within one running process and profile, so repeat questions about the same page and period do not call the API again until expiry or manual refresh.
+Search Console sorts query rows by clicks and orders ties arbitrarily; it has no sort parameter and does not guarantee all rows. A small `rowLimit` therefore returns an arbitrary sample of zero-click queries. For each page and period, Page Evidence makes one request for up to 5000 query rows, ranks them locally by impressions, and returns only the top rows. `get_query_entry_exit` computes entered, exited, and retained on the fetched rows, returns counts and the highest-impression rows of each group (20 by default, `limit` up to 50, preserving full metric rows and baseline labels), and includes fetched-row coverage against the page total. If the 5000-row cap is reached, the response says so. Entered and exited mean absent from the fetched rows; they do not show that a query started or stopped receiving impressions. Fetches are reused for up to one hour within one running process and profile, so repeat questions about the same page and period do not call the API again until expiry or manual refresh.
 
 `find_question_opportunities` is a site-wide, bounded GSC query-and-page view for sparse question-like queries. It uses transparent Danish and English text patterns and can include one-impression, zero-click rows. It returns measured Google queries only: it cannot identify questions asked in ChatGPT or another answer engine, and it does not recommend a content action.
 
@@ -184,15 +186,15 @@ Search Console sorts query rows by clicks and orders ties arbitrarily; it has no
 
 `get_page_history` reads up to 12 matching observations already stored locally for one page, profile, analytics provider, and comparison window. It does not backfill missing history. Local actions can be typed as content, technical, campaign, tracking, external, or other changes. `get_action_review_context` retrieves a recorded baseline, a clean post-implementation observation when one exists, and any period that overlaps the implementation date. These are review aids, not causal attribution.
 
-Page context includes displayed query subtotals beside the page totals. A difference means only that it is not explained by the bounded rows returned; Site Signal does not label the difference as privacy-withheld or absent. `get_site_status` reports optional repository, sitemap, outcome-event, and analytics readiness separately from required profile setup.
+Page context includes displayed query subtotals beside the page totals. A difference means only that it is not explained by the bounded rows returned; Page Evidence does not label the difference as privacy-withheld or absent. `get_site_status` reports optional repository, sitemap, outcome-event, and analytics readiness separately from required profile setup.
 
 ## Interpretation rules
 
-The report returns fewer opportunities when data is sparse. Current gates require at least 100 impressions in either comparison period. A `ready` state requires GSC page rows to remain within the configured cap and at least a three-day reporting lag. If either comparison source is incomplete, or the lag is shorter, Site Signal shows that state instead of presenting the candidate as decision-ready. Use `site-signal page https://example.com/page/` to inspect the selected page's current and prior query examples. Query evidence is illustrative, not a complete total: the GSC API returns top rows and may withhold low-volume data. Analytics evidence uses the selected provider's own metric names and scope; it is not query-attributed. High impressions plus low CTR is not automatically a title problem. Before changing a page, inspect the query mix, position, reader intent, and implementation context.
+The report returns fewer opportunities when data is sparse. Current gates require at least 100 impressions in either comparison period. A `ready` state requires GSC page rows to remain within the configured cap and at least a three-day reporting lag. If either comparison source is incomplete, or the lag is shorter, Page Evidence shows that state instead of presenting the candidate as decision-ready. Use `page-evidence page https://example.com/page/` to inspect the selected page's current and prior query examples. Query evidence is illustrative, not a complete total: the GSC API returns top rows and may withhold low-volume data. Analytics evidence uses the selected provider's own metric names and scope; it is not query-attributed. High impressions plus low CTR is not automatically a title problem. Before changing a page, inspect the query mix, position, reader intent, and implementation context.
 
 ## Product direction
 
-The actively maintained, decision-gated backlog lives in [BACKLOG.md](BACKLOG.md). It is intentionally not a feature roadmap: an item is built only when it improves a specific content decision while preserving Site Signal's local-first, read-only posture.
+The actively maintained, decision-gated backlog lives in [BACKLOG.md](BACKLOG.md). It is intentionally not a feature roadmap: an item is built only when it improves a specific content decision while preserving Page Evidence's local-first, read-only posture.
 
 ## Privacy and security
 
@@ -201,3 +203,7 @@ Read [SECURITY.md](SECURITY.md). Never commit `.env`, `~/.site-signal`, report f
 ## Licence
 
 [MIT](LICENSE).
+
+## Compatibility after the rename
+
+The executable is now `page-evidence`. The old `site-signal` command remains an alias. Use `PAGE_EVIDENCE_*` variables for new configurations; existing `SITE_SIGNAL_*` variables remain supported, with the new names taking precedence. The default storage directory remains `~/.site-signal` and the database filename remains `site-signal.sqlite`, so existing credentials, snapshots, and action logs are reused without migration. Existing local checkout paths and MCP entry names can stay as they are.

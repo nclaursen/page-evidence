@@ -177,13 +177,13 @@ export class EngageProvider implements AnalyticsProvider{
       const response=await this.query(period,page,Math.min(500,cap-sourceRows.length));pagesFetched++;
       if(!columns.length)columns=response.columns;else if(columns.join('\u0000')!==response.columns.join('\u0000'))throw new EngageProviderError('incompatible','Umbraco Engage changed analytics columns between pages.');
       totalRows=response.totalRows;totalPages=response.totalPages;reportsExist=response.reportsExist;
-      if(!reportsExist){limitations.push('Umbraco Engage reporting tables do not exist or are not ready. Site Signal did not trigger reporting generation.');break}
+      if(!reportsExist){limitations.push('Umbraco Engage reporting tables do not exist or are not ready. Page Evidence did not trigger reporting generation.');break}
       sourceRows.push(...response.rows.slice(0,cap-sourceRows.length));
       if(response.currentPage>=response.totalPages||response.totalPages===0)break;
       if(response.rows.length===0){limitations.push('Umbraco Engage returned an empty page before pagination completed.');break}
       page++;
     }
-    if(totalRows>sourceRows.length)limitations.push(`Umbraco Engage reported ${totalRows} rows; Site Signal fetched ${sourceRows.length} within the configured ${cap}-row cap.`);
+    if(totalRows>sourceRows.length)limitations.push(`Umbraco Engage reported ${totalRows} rows; Page Evidence fetched ${sourceRows.length} within the configured ${cap}-row cap.`);
     const parsed=sourceRows.length?this.rows(columns,sourceRows):[],aggregated=this.aggregate(parsed);
     if(aggregated.duplicates)limitations.push(`${aggregated.duplicates} normalized duplicate URL row(s) were collapsed. Only additive pageviews and goal completions were summed; non-additive page sessions, visitors, rates, and averages are unavailable for those URLs.`);
     const metricAvailability=Object.fromEntries(engageMetrics.map(metric=>{const present=columns.includes(metric);return[metric,present?{available:true}:{available:false,reason:`Umbraco Engage did not return the requested ${metric} column.`}]}));
