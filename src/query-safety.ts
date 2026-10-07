@@ -34,6 +34,7 @@ function sanitize(value:unknown):{value:unknown;found:boolean}{
   for(const [key,item]of Object.entries(source)){
     if(key==='query'&&typeof item==='string'){Object.assign(result,safeQueryText(item));found=true;continue}
     if(key==='question'&&typeof item==='string'){const safe=safeQueryText(item);result.question=safe.query;result.questionId=safe.queryId;result.questionHidden=safe.queryHidden;result.questionKind=safe.queryKind;result.questionLength=safe.queryLength;found=true;continue}
+    if(key==='rationale'&&typeof item==='string'){const safe=safeQueryText(item);result.rationale=safe.query;result.rationaleHidden=safe.queryHidden;found=true;continue}
     if((key==='terms'||key==='matchedTerms')&&Array.isArray(item)){result[key]=safeQueryTerms(item.filter((term):term is string=>typeof term==='string'));found=true;continue}
     if(['queryId','queryHidden','queryKind','queryLength','queryTruncated'].includes(key)&&typeof source.query==='string')continue;
     const nested=sanitize(item);result[key]=nested.value;found=found||nested.found;

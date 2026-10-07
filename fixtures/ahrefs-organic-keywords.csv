@@ -1,0 +1,8 @@
+Keyword,Country,Location,Language,Entities,Branded,Local,Navigational,Informational,Commercial,Transactional,SERP features,Volume,KD,CPC,Previous organic traffic,Current organic traffic,Organic traffic change,Current paid traffic,Previous position,Current position,Position change,Previous position kind,Previous URL,Current position kind,Current URL,Previous date,Current date,Unknown optional column
+enterprise cms,US,United States,English,,false,false,false,true,false,false,"AI Overview, People also ask","1,200",42,,,100,,,4,9,'-5,,https://example.com/cms,,https://www.example.com/cms?utm_source=export#top,2026-09-05 14:32:27,2026-10-01 22:44:02,"preserved, but unused"
+headless cms api,US,United States,English,,false,false,false,true,true,false,,600,36,,,,,,,11,,,,,https://example.com/cms,,2026-10-02 04:40:14,"preserved, but unused"
+cms migration checklist,US,United States,English,,false,false,false,true,false,false,,1.2K,28,,,,,,,5,,,,,https://competitor.example/migration,,2026-10-03 01:17:02,"preserved, but unused"
+discount lottery tickets,US,United States,English,,false,false,true,false,false,false,,51000,91,,,,,,,1,,,,,https://competitor.example/lottery,,2026-10-04 15:16:55,"preserved, but unused"
+old cms guide,US,United States,English,,false,false,false,true,false,false,,500,10,,10,,,,8,,Lost,,https://example.com/old-cms,,,2026-08-14 18:58:11,,"preserved, but unused"
+cms range estimate,US,United States,English,,false,false,false,true,false,false,,0-10,,,,,,,,,,,,,https://example.com/range,,2026-10-02 04:40:14,"preserved, but unused"
+cms documentation,US,United States,"English, French",,false,false,false,true,false,false,,100,,,,,,,,1,,,,AI Overview,https://docs.example.com/cms,,2026-10-02 04:40:14,"preserved, but unused"

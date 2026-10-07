@@ -20,6 +20,8 @@ export class Store{
   saveCheckpoint(key:string,payload:unknown){this.db.exec('CREATE TABLE IF NOT EXISTS digest_checkpoints(key TEXT PRIMARY KEY,payload TEXT)');this.db.prepare('INSERT OR REPLACE INTO digest_checkpoints VALUES(?,?)').run(key,JSON.stringify(payload))}
   save(id:string,p:unknown){this.db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?)').run(id,new Date().toISOString(),JSON.stringify(p))}
   get(id:string){const r=this.db.prepare('SELECT payload FROM snapshots WHERE id=?').get(id)as any;return r&&JSON.parse(r.payload)}
+  saveExternal(id:string,payload:unknown){this.db.exec('CREATE TABLE IF NOT EXISTS external_search_datasets(id TEXT PRIMARY KEY,payload TEXT)');this.db.prepare('INSERT OR IGNORE INTO external_search_datasets VALUES(?,?)').run(id,JSON.stringify(payload))}
+  external(id:string){this.db.exec('CREATE TABLE IF NOT EXISTS external_search_datasets(id TEXT PRIMARY KEY,payload TEXT)');const row=this.db.prepare('SELECT payload FROM external_search_datasets WHERE id=?').get(id);return row?JSON.parse(row.payload):null}
   snapshots(){return this.db.prepare('SELECT id,created_at,payload FROM snapshots ORDER BY created_at DESC').all().map((row:any)=>({id:row.id,createdAt:row.created_at,payload:JSON.parse(row.payload)}))}
   actions(url?:string){return this.db.prepare(url?'SELECT * FROM actions WHERE url=? ORDER BY updated_at DESC':'SELECT * FROM actions ORDER BY updated_at DESC').all(...(url?[url]:[]))}
   actionById(id:string){return this.db.prepare('SELECT * FROM actions WHERE id=?').get(id)}

@@ -6,11 +6,13 @@ An item belongs here only if it makes that decision more reliable, makes a delib
 
 ## Product boundary
 
-The MCP owns authenticated source access, normalized evidence, local snapshots, deterministic coverage flags, and explicit user-recorded state. The chat client owns interpretation: query themes, hypotheses, priorities, briefs, and recommendations.
+The MCP owns authenticated source access, normalized evidence, local snapshots, deterministic coverage flags, and explicit user-recorded state. The chat client owns semantic interpretation: query themes, hypotheses, answer quality, intent fit, and editorial recommendations.
 
-Do not add an MCP feature unless it returns data or durable local state a client cannot reliably recreate from one chat turn. The server must not contain prose recommendations, rewrite advice, generic scores, or hidden LLM reasoning.
+Do not add an MCP feature unless it returns data or durable local state a client cannot reliably recreate from one chat turn. Search opportunities are an explicit exception for deterministic, inspectable action candidates and fixed next-step templates. They must retain provenance, contradictions, missing evidence and review gates. Semantic EXPAND, CREATE and CONSOLIDATE judgments come from explicit client/reviewer assessments with evidence references; they are never presented as observed facts. The server must not call a model, generate editorial copy, produce generic scores, or hide reasoning.
 
 ## Completed
+
+- **External search evidence and opportunities:** local Ahrefs Organic Keywords imports normalize provider evidence separately from rule-based opportunity analysis. Bounded first-party discovery and page enrichment support review-gated IMPROVE, EXPAND, CREATE, CONSOLIDATE and IGNORE candidates over CLI/MCP, without a model API, DataForSEO integration or UI.
 
 - **Analytics provider boundary:** GA4, Matomo, Umbraco Engage, and GSC-only setups expose honest provider scope, metric names, availability, and coverage limitations.
 - **Readiness and freshness:** reports expose incomplete coverage, reporting lag, sparse evidence, and maturing pages rather than overstating a conclusion.

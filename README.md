@@ -190,6 +190,20 @@ Page context includes displayed query subtotals beside the page totals. A differ
 
 ## Interpretation rules
 
+### External search evidence and search opportunities
+
+```sh
+page-evidence external-import ./organic-keywords.csv
+page-evidence opportunities --external=./organic-keywords.csv --days=30
+page-evidence opportunities --external-id=external_DATASET_ID --format=text
+page-evidence opportunities --action=IMPROVE --independent-support
+page-evidence opportunities --days=30
+```
+
+V1 imports local Ahrefs Organic Keywords exports into provider-neutral, profile-scoped evidence. JSON is the default; `--format=text` prints a terminal summary. External evidence is optional. The MCP tools are `import_external_search_evidence` and `find_search_opportunities`, alongside the existing tools above. Analysis returns a small set of review-gated IMPROVE, EXPAND, CREATE, CONSOLIDATE and IGNORE candidates with provenance, contradictions and missing evidence. Semantic actions require explicit client/reviewer assessments; the server makes no model calls. DataForSEO and a UI are not implemented.
+
+See [search opportunity rules and inputs](docs/search-opportunities.md) and [synthetic evaluation fixtures](fixtures/README.md).
+
 The report returns fewer opportunities when data is sparse. Current gates require at least 100 impressions in either comparison period. A `ready` state requires GSC page rows to remain within the configured cap and at least a three-day reporting lag. If either comparison source is incomplete, or the lag is shorter, Page Evidence shows that state instead of presenting the candidate as decision-ready. Use `page-evidence page https://example.com/page/` to inspect the selected page's current and prior query examples. Query evidence is illustrative, not a complete total: the GSC API returns top rows and may withhold low-volume data. Analytics evidence uses the selected provider's own metric names and scope; it is not query-attributed. High impressions plus low CTR is not automatically a title problem. Before changing a page, inspect the query mix, position, reader intent, and implementation context.
 
 ## Product direction

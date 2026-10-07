@@ -9,6 +9,9 @@ import {safeQueryTerms} from './query-safety.js';
 import {freshness,QUERY_TTL_MS,SNAPSHOT_TTL_MS} from './freshness.js';
 import {digestChanges} from './digest.js';
 import {reviewAssessment,validDate} from './action-review.js';
+import {MAX_EXTERNAL_BYTES,parseAhrefsCsv} from './ahrefs-csv.js';
+import {externalDatasetSchema,externalDatasetSummary} from './external-search.js';
+import {analyzeSearchOpportunities,assessmentSchema,discoverSearchPages,searchActions,sitePageKey,type SearchAssessment,type SearchOptions,type SearchPageContext,type SearchSnapshot} from './search-opportunities.js';
 
 function withReadiness(snapshot:any,c:any){
   const gscTruncated=Boolean(snapshot.coverage?.gscTruncated);
@@ -58,6 +61,40 @@ export function cacheStatus(windowDays=30){
 }
 
 export async function refreshEvidence(windowDays=30){const snapshot=await sync(true,windowDays);return{profile:snapshot.profile,snapshotId:snapshot.id,periods:snapshot.range,freshness:snapshot.freshness,queryCacheInvalidated:true,queryRowsRefetched:false}}
+
+export function importExternalSearchEvidence(filePath:string){
+  if(!filePath||typeof filePath!=='string')throw Error('A local export path is required.');
+  const c=config(),fd=fs.openSync(filePath,'r');let bytes:Buffer;
+  try{const stat=fs.fstatSync(fd);if(!stat.isFile()||stat.size>MAX_EXTERNAL_BYTES)throw Error('External input must be a regular file no larger than 20 MiB.');bytes=fs.readFileSync(fd)}finally{fs.closeSync(fd)}
+  const dataset=parseAhrefsCsv(bytes,filePath,c),store=new Store(c.dataDir);
+  try{store.saveExternal(dataset.id,dataset);return externalDatasetSummary(externalDatasetSchema.parse(store.external(dataset.id)))}finally{store.db.close()}
+}
+
+export async function findSearchOpportunities(input:SearchOptions&{windowDays?:number;refresh?:boolean;externalDatasetId?:string;externalPath?:string;pageBudget?:number;assessments?:SearchAssessment[]}={}){
+  const windowDays=input.windowDays??30,pageBudget=input.pageBudget??10,limit=input.limit??10;
+  if(!validWindowDays(windowDays))throw Error('windowDays must be one of 7, 30, 60, or 90.');
+  if(!Number.isInteger(pageBudget)||pageBudget<1||pageBudget>20)throw Error('pageBudget must be a whole number from 1 to 20.');
+  if(!Number.isInteger(limit)||limit<1||limit>20)throw Error('limit must be a whole number from 1 to 20.');
+  if(input.externalPath&&input.externalDatasetId)throw Error('Use an external path or dataset ID, not both.');
+  if(input.action&&!searchActions.includes(input.action))throw Error('Unknown search action.');
+  for(const value of [input.minimumImpressions,input.minimumDemand,input.maxExternalAgeDays])if(value!==undefined&&(!Number.isFinite(value)||value<1))throw Error('Opportunity thresholds must be positive finite numbers.');
+  if(input.assessments&&input.assessments.length>20)throw Error('At most 20 assessments are allowed.');
+  input.assessments?.forEach(x=>assessmentSchema.parse(x));
+  const c=config(),externalDatasetId=input.externalPath?importExternalSearchEvidence(input.externalPath).id:input.externalDatasetId;
+  let external;
+  if(externalDatasetId){const store=new Store(c.dataDir);try{const saved=store.external(externalDatasetId);if(!saved)throw Error(`No imported external dataset found for ${externalDatasetId}.`);external=externalDatasetSchema.parse(saved);if(external.profile!==c.profile||external.siteScope.domain!==c.domain||external.siteScope.gscProperty!==c.gscProperty)throw Error('External dataset belongs to a different profile or site scope.')}finally{store.db.close()}}
+  const snapshot=await sync(input.refresh??false,windowDays) as SearchSnapshot;
+  const selected=discoverSearchPages(snapshot,external,c,pageBudget,input.minimumImpressions);
+  const contexts:SearchPageContext[]=[];
+  for(const page of selected){try{
+    const [current,previous]=await Promise.all([pageQueryRows(c,snapshot.range.current,page.url),pageQueryRows(c,snapshot.range.previous,page.url)]);
+    const pageKey=sitePageKey(page.url,c);
+    const externalTerms=external?.observations.filter(x=>x.rankingUrl&&sitePageKey(x.rankingUrl,c)===pageKey).map(x=>x.query)??[];
+    const terms=safeQueryTerms([...rankQueries(current.rows).slice(0,10).map(x=>x.query),...externalTerms.slice(0,10)]);
+    contexts.push({url:page.url,current:current.rows,previous:previous.rows,truncated:current.truncated||previous.truncated,fetchedAt:current.fetchedAt,sourceContext:await pageSourceContext(page.url,terms)});
+  }catch(error){contexts.push({url:page.url,current:[],previous:[],truncated:true,error:error instanceof Error?error.message:'Page evidence retrieval failed.'})}}
+  return{...analyzeSearchOpportunities({snapshot,contexts,external,config:c,assessments:input.assessments,options:input}),windowDays,pageBudget,freshness:(snapshot as any).freshness,external:external?externalDatasetSummary(external):null};
+}
 
 export async function changeDigest(windowDays=30,limit=5,refresh=false,advanceCheckpoint=true){
   if(!Number.isInteger(limit)||limit<1||limit>20)throw Error('limit must be a whole number from 1 to 20.');

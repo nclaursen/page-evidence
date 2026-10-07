@@ -4,7 +4,7 @@ import {config,normalize} from './core.js';
 
 const sourceExtensions=/\.(md|mdx|astro|html)$/i;
 const ignoredDirectories=new Set(['node_modules','.git','dist']);
-const files=(directory:string,output:string[]=[]):string[]=>{for(const entry of fs.readdirSync(directory,{withFileTypes:true})){if(ignoredDirectories.has(entry.name))continue;const full=path.join(directory,entry.name);if(entry.isDirectory())files(full,output);else if(sourceExtensions.test(entry.name))output.push(full)}return output};
+const files=(directory:string,output:string[]=[]):string[]=>{for(const entry of fs.readdirSync(directory,{withFileTypes:true})){if(ignoredDirectories.has(entry.name)||/^node_modules\./.test(entry.name))continue;const full=path.join(directory,entry.name);if(entry.isDirectory())files(full,output);else if(sourceExtensions.test(entry.name))output.push(full)}return output};
 const slugFor=(url:string,c:any)=>normalize(url,c).replace(/^\/+|\/+$/g,'').split('/').pop()||'';
 const titleFor=(text:string)=>/^title:\s*["']?(.+?)["']?\s*$/m.exec(text)?.[1]||null;
 const stopWords=new Set(['about','after','also','and','are','can','content','does','for','from','have','how','into','more','that','the','this','what','when','where','which','with','your']);
