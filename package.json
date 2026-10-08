@@ -1,6 +1,6 @@
 {
   "name": "page-evidence",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A local-first GSC, GA4, Matomo, and Umbraco Engage content-opportunity CLI and MCP server.",
   "type": "module",
   "bin": { "page-evidence": "./dist/cli.js", "site-signal": "./dist/cli.js" },
