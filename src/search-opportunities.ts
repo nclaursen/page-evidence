@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import * as z from 'zod/v4';
-import {normalize,type AnalyticsEvidence,type Config,type DecisionReadiness,type Page,type Period,type Query} from './core.js';
+import {pageKey,type AnalyticsEvidence,type Config,type DecisionReadiness,type Page,type Period,type Query} from './core.js';
 import type {ExternalSearchDataset,ExternalSearchObservation} from './external-search.js';
 import {isInstructionLike,queryTextMode} from './query-safety.js';
 
@@ -34,13 +34,7 @@ export type SearchOptions={limit?:number;action?:SearchAction;requireIndependent
 export function queryKey(query:string){return query.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase()}
 // Retain host identity in the key. Reusing the path normalizer without this
 // boundary would equate a competitor's /guide with the configured site's /guide.
-export function sitePageKey(raw:string,c:Pick<Config,'domain'|'trackingParams'>){
-  try{const domain=new URL(`https://${c.domain}`).hostname.toLowerCase(),url=new URL(raw,`https://${domain}`);
-    if(!['http:','https:'].includes(url.protocol)||!(url.hostname===domain||url.hostname===`www.${domain}`||domain.startsWith('www.')&&url.hostname===domain.slice(4)||url.hostname.endsWith(`.${domain}`)))return null;
-    const host=url.hostname===`www.${domain}`?domain:domain.startsWith('www.')&&url.hostname===domain.slice(4)?domain:url.hostname;
-    return host+normalize(url.toString(),c as Config);
-  }catch{return null}
-}
+export function sitePageKey(raw:string,c:Pick<Config,'domain'|'trackingParams'>){return pageKey(raw,c)}
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex').slice(0,16);
 const usableQuery=(query:string)=>!isInstructionLike(query);
 const monthlyDemand=(observation:ExternalSearchObservation)=>observation.searchDemand?.unit==='searches_per_month'?(observation.searchDemand.value??observation.searchDemand.range?.min??0):null;

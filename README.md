@@ -101,7 +101,7 @@ The OAuth flow requests `webmasters.readonly` and, only for GA4, `analytics.read
 
 One running Page Evidence MCP server represents one site profile and one analytics provider. To use GA4, Matomo, or Engage for different sites, run the same built executable as separate named MCP entries, each with its own private env file and `PAGE_EVIDENCE_DATA_DIR`. Do not share a data directory between profiles.
 
-Every snapshot, report, page-context result, and MCP response identifies its profile and analytics provider. This prevents Matomo visits from being presented as GA4 sessions and prevents snapshots from different sites being mixed.
+Snapshots, reports, and page-context results identify their profile and analytics provider; some other MCP responses currently omit identity metadata. New snapshots also carry a versioned site/property/settings fingerprint, validated before reuse or comparison. Provider evidence retains its own metric names and scope, and separate private data directories remain required. See [evidence identity and legacy-data compatibility](docs/evidence-identity.md).
 
 ## Keep your local installation up to date
 
@@ -162,7 +162,7 @@ Use `windowDays: 7` in MCP or `--days=7` in CLI for a full seven-day lookback. W
 
 `get_action_review_context(actionId, windowDays?)` and `page-evidence actions review ACTION_ID --days=7` return click and impression deltas (absolute and relative), CTR percentage-point change, position change, other implemented/reviewed same-page actions within the comparison span, and an `evidenceAssessment`. Zero baselines have no relative percentage. Adequate observations permit descriptive review, not causal attribution or statistical significance.
 
-The baseline must be wholly before the implementation date and the after-period wholly after it, with equal lengths and matching profile/provider. Pinned baselines are validated rather than silently substituted; a pinned 30-day baseline cannot be used for a 7-day comparison. A new seven-day review needs stored seven-day observations. Missing history is not automatically backfilled. Assessment checks volume in both periods against `MINIMUM_BASELINE_IMPRESSIONS`, coverage/readiness and reporting lag. Other recorded changes are caveats, not proof of a confounding effect. Unrecorded or site-wide changes are not detected.
+The baseline must be wholly before the implementation date and the after-period wholly after it, with equal lengths and matching site/property/settings identity. Pinned baselines are validated rather than silently substituted; a pinned 30-day baseline cannot be used for a 7-day comparison. A new seven-day review needs stored seven-day observations. Missing history is not automatically backfilled. Assessment checks volume in both periods against `MINIMUM_BASELINE_IMPRESSIONS`, coverage/readiness and reporting lag. Other recorded changes are caveats, not proof of a confounding effect. Unrecorded or site-wide changes are not detected.
 
 For a September 2 edit, a stored August 26–September 1 baseline and September 3–9 after-period can support an initial weekly comparison once the reporting delay has passed. A latest-week lookback alone does not isolate the effect of that edit.
 
@@ -184,7 +184,7 @@ Search Console sorts query rows by clicks and orders ties arbitrarily; it has no
 
 `get_page_investigation_context` is the general chat entry point for “inspect this URL over 7, 30, 60, or 90 days.” It combines the selected URL's GSC and provider-scoped analytics evidence with bounded query examples and optional local source headings/excerpts. `get_question_page_context` does the same for a selected question and landing page. Neither tool judges answer quality or writes copy: a chat client does that from the returned evidence.
 
-`get_page_history` reads up to 12 matching observations already stored locally for one page, profile, analytics provider, and comparison window. It does not backfill missing history. Local actions can be typed as content, technical, campaign, tracking, external, or other changes. `get_action_review_context` retrieves a recorded baseline, a clean post-implementation observation when one exists, and any period that overlaps the implementation date. These are review aids, not causal attribution.
+`get_page_history` reads up to 12 matching observations already stored locally for one page, verified site/property/settings identity, and comparison window. Legacy snapshots remain stored but are excluded when their identity cannot be verified; coverage reports the excluded count. It does not backfill missing history. Local actions can be typed as content, technical, campaign, tracking, external, or other changes. `get_action_review_context` retrieves a recorded baseline, a clean post-implementation observation when one exists, and any period that overlaps the implementation date. These are review aids, not causal attribution.
 
 Page context includes displayed query subtotals beside the page totals. A difference means only that it is not explained by the bounded rows returned; Page Evidence does not label the difference as privacy-withheld or absent. `get_site_status` reports optional repository, sitemap, outcome-event, and analytics readiness separately from required profile setup.
 
@@ -220,4 +220,4 @@ Read [SECURITY.md](SECURITY.md). Never commit `.env`, `~/.site-signal`, report f
 
 ## Compatibility after the rename
 
-The executable is now `page-evidence`. The old `site-signal` command remains an alias. Use `PAGE_EVIDENCE_*` variables for new configurations; existing `SITE_SIGNAL_*` variables remain supported, with the new names taking precedence. The default storage directory remains `~/.site-signal` and the database filename remains `site-signal.sqlite`, so existing credentials, snapshots, and action logs are reused without migration. Existing local checkout paths and MCP entry names can stay as they are.
+The executable is now `page-evidence`. The old `site-signal` command remains an alias. Use `PAGE_EVIDENCE_*` variables for new configurations; existing `SITE_SIGNAL_*` variables remain supported, with the new names taking precedence. The default storage directory remains `~/.site-signal` and the database filename remains `site-signal.sqlite`, so existing credentials and action logs remain available without a schema migration. Legacy snapshots remain stored, but only identity-verified snapshots are reused for analysis; see the compatibility notes above. Existing local checkout paths and MCP entry names can stay as they are.

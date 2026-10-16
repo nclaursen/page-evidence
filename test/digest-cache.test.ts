@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
-import {config,periods,snapshotId,Store} from '../src/core.js';
+import {config,evidenceIdentity,periods,snapshotId,Store} from '../src/core.js';
 import {digestChanges} from '../src/digest.js';
 import {freshness,QUERY_TTL_MS,SNAPSHOT_TTL_MS} from '../src/freshness.js';
 
@@ -15,7 +15,7 @@ const page=(name:string,clicks=10,impressions=200)=>({url:`https://example.test/
 const empty={provider:'none',rows:[],sourceSummaries:[],metricLabels:{},coverage:{complete:true,limitations:[]}};
 function save(rows=[page('a')],createdAt=new Date().toISOString(),truncated=false){
   const c=config(),range=periods(c.lag,30),store=new Store(c.dataDir);
-  const value={profile:c.profile,analyticsProvider:c.analyticsProvider,range,gsc:rows,previousGsc:rows,analytics:{current:empty,previous:empty},coverage:{gscTruncated:truncated},createdAt};
+  const value={identity:evidenceIdentity(c),profile:c.profile,analyticsProvider:c.analyticsProvider,range,gsc:rows,previousGsc:rows,analytics:{current:empty,previous:empty},coverage:{gscTruncated:truncated},createdAt};
   store.save(snapshotId(c,range.current),value);store.db.close();return value;
 }
 beforeEach(()=>{

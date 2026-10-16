@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {Store} from '../src/core.js';
+import {config,evidenceIdentity,Store} from '../src/core.js';
 import {actionReviewContext,pageHistory,queryCoverage,recordAction,status} from '../src/service.js';
 
 let dataDir='';
@@ -10,7 +10,7 @@ const previousEnv:Record<string,string|undefined>={};
 const envKeys=['SITE_SIGNAL_DATA_DIR','SITE_SIGNAL_PROFILE','SITE_DOMAIN','GSC_PROPERTY','ANALYTICS_PROVIDER','SITE_SIGNAL_REPOSITORY_PATH','SITE_SIGNAL_SITEMAP_URL','GA4_OUTCOME_EVENT_NAMES','GA4_PROPERTY_ID','MATOMO_URL','MATOMO_SITE_ID','MATOMO_TOKEN_AUTH','UMBRACO_BASE_URL','UMBRACO_CLIENT_ID','UMBRACO_CLIENT_SECRET'];
 
 function snapshot(start:string,end:string,clicks:number,impressions:number){
-  return{profile:'history-test',analyticsProvider:'none',range:{current:{start,end},previous:{start:'2025-12-01',end:'2025-12-30'}},gsc:[{url:'https://example.com/page',key:'/page',clicks,impressions,ctr:clicks/impressions,position:5}],previousGsc:[],analytics:{current:{provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}},previous:{provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}}},coverage:{gscTruncated:false},createdAt:`${end}T12:00:00.000Z`};
+  return{identity:evidenceIdentity(config()),profile:'history-test',analyticsProvider:'none',range:{current:{start,end},previous:{start:'2025-12-01',end:'2025-12-30'}},gsc:[{url:'https://example.com/page',key:'/page',clicks,impressions,ctr:clicks/impressions,position:5}],previousGsc:[],analytics:{current:{provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}},previous:{provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}}},coverage:{gscTruncated:false},createdAt:`${end}T12:00:00.000Z`};
 }
 
 beforeEach(()=>{

@@ -1,6 +1,6 @@
 import{afterEach,describe,expect,it,vi}from'vitest';
 import{analyticsProvider,EngageProvider,EngageProviderError,MatomoProvider,NoneProvider}from'../src/analytics.js';
-import{Config,snapshotId}from'../src/core.js';
+import{Config,evidenceIdentity,snapshotId}from'../src/core.js';
 
 afterEach(()=>vi.unstubAllGlobals());
 const baseConfig:Config={profile:'umbraco',domain:'umbraco.test',gscProperty:'sc-domain:umbraco.test',ga4PropertyId:'',analyticsProvider:'none',matomoUrl:'',matomoSiteId:'',matomoTokenAuth:'',umbracoBaseUrl:'',umbracoClientId:'',umbracoClientSecret:'',outcomeEvents:[],dataDir:'/tmp/site-signal-umbraco',reportDir:'/tmp/site-signal-umbraco/reports',lag:3,cap:5000,analyticsCap:10000,minimumBaselineImpressions:25,trackingParams:['utm_source']};
@@ -20,7 +20,7 @@ describe('analytics providers',()=>{
   it('normalizes Matomo page and referrer reports without exposing the token in the URL',async()=>{const calls:any[]=[];vi.stubGlobal('fetch',vi.fn(async(url:any,init:any)=>{calls.push({url:String(url),body:String(init.body)});const params=new URLSearchParams(String(init.body));if(params.get('method')==='Actions.getPageUrls')return new Response(JSON.stringify([{label:'/docs/?utm_source=x',nb_visits:8,nb_hits:12,nb_uniq_pageviews:7,entry_nb_visits:3,bounce_rate:'61%'},{label:'/raw/',nb_visits:4,nb_hits:6,nb_uniq_pageviews:3,entry_nb_visits:2,bounce_rate:.25}]));return new Response(JSON.stringify([{label:'Search Engines',nb_visits:5,nb_actions:9,nb_conversions:1}]));}));const evidence=await new MatomoProvider(matomoConfig).landingEvidence({start:'2026-01-01',end:'2026-01-28'});expect(evidence.rows).toEqual([{url:'/docs/?utm_source=x',acquisition:null,metrics:{visits:8,pageviews:12,uniquePageviews:7,entries:3,bounceRate:.61}},{url:'/raw/',acquisition:null,metrics:{visits:4,pageviews:6,uniquePageviews:3,entries:2,bounceRate:.25}}]);expect(evidence.sourceSummaries[0]).toMatchObject({type:'Matomo referrer type',value:'Search Engines',metrics:{visits:5}});expect(calls).toHaveLength(2);expect(calls[0].url).not.toContain('secret-token');expect(calls[0].body).toContain('token_auth=secret-token');expect(calls.every(call=>call.body.includes('format_metrics=0'))).toBe(true);});
   it('identifies a malformed Matomo bounce rate',async()=>{vi.stubGlobal('fetch',vi.fn(async(_url:any,init:any)=>new URLSearchParams(String(init.body)).get('method')==='Actions.getPageUrls'?new Response(JSON.stringify([{label:'/bad/',nb_visits:1,nb_hits:1,entry_nb_visits:1,bounce_rate:'not-a-percent'}])):new Response('[]')));await expect(new MatomoProvider(matomoConfig).landingEvidence({start:'2026-01-01',end:'2026-01-28'})).rejects.toThrow('Matomo bounce_rate');});
   it('supports GSC-only analytics evidence',async()=>{const evidence=await new NoneProvider().landingEvidence({start:'2026-01-01',end:'2026-01-28'});expect(evidence).toMatchObject({provider:'none',rows:[],coverage:{complete:true}});});
-  it('includes profile and provider in a snapshot id',()=>expect(snapshotId(matomoConfig,{start:'2026-01-01',end:'2026-01-28'})).toBe('umbraco_matomo_2026-01-01_2026-01-28'));
+  it('includes profile and provider in a snapshot id',()=>expect(snapshotId(matomoConfig,{start:'2026-01-01',end:'2026-01-28'})).toBe(`umbraco_matomo_2026-01-01_2026-01-28_${evidenceIdentity(matomoConfig).fingerprint}`));
 });
 
 describe('Umbraco Engage provider',()=>{
@@ -85,6 +85,20 @@ describe('Umbraco Engage provider',()=>{
     const evidence=await new EngageProvider(engageConfig).landingEvidence({start:'2026-01-01',end:'2026-01-30'});
     expect(evidence.rows).toEqual([{url:'/guide/',acquisition:null,metrics:{pageviews:12,pageSessions:null,pageVisitors:null,bounceRate:null,avgTimeOnPage:null,avgEngagedTimeOnPage:null,goalCompletionsAll:3}}]);
     expect(evidence.coverage.limitations.join(' ')).toContain('normalized duplicate');
+  });
+
+  it('keeps same-path pages on different hosts separate when aggregating duplicates',async()=>{
+    const rows=[['https://umbraco.test/guide?utm_source=a',5,4,4,.2,20,10,1],['https://docs.umbraco.test/guide?utm_source=b',7,5,5,.3,30,15,2],['https://docs.umbraco.test/guide?utm_source=c',3,2,2,.3,30,15,1]];
+    mockEngage(url=>url.endsWith('/token')?new Response(JSON.stringify({access_token:'access-token',expires_in:300})):url.endsWith('/package')?new Response(JSON.stringify(okPackage)):new Response(JSON.stringify(query(rows))));
+    const evidence=await new EngageProvider(engageConfig).landingEvidence({start:'2026-01-01',end:'2026-01-30'});
+    expect(evidence.rows).toHaveLength(2);
+    expect(evidence.rows[0]).toMatchObject({url:rows[0][0],metrics:{pageviews:5,pageSessions:4}});
+    expect(evidence.rows[1]).toMatchObject({url:'https://docs.umbraco.test/guide',metrics:{pageviews:10,pageSessions:null,goalCompletionsAll:3}});
+  });
+
+  it('rejects foreign hosts instead of combining their metrics with the configured site',async()=>{
+    mockEngage(url=>url.endsWith('/token')?new Response(JSON.stringify({access_token:'access-token',expires_in:300})):url.endsWith('/package')?new Response(JSON.stringify(okPackage)):new Response(JSON.stringify(query([['https://foreign.test/guide',5,4,4,.2,20,10,1]]))));
+    await expect(new EngageProvider(engageConfig).landingEvidence({start:'2026-01-01',end:'2026-01-30'})).rejects.toMatchObject({kind:'incompatible',message:'Umbraco Engage returned a page URL outside the configured site.'});
   });
 
   it('keeps genuine zeros distinct from missing or unavailable values',async()=>{

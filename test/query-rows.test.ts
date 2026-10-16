@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {config,periods,rankQueries,snapshotId,Store} from '../src/core.js';
+import {config,evidenceIdentity,periods,rankQueries,snapshotId,Store} from '../src/core.js';
 
 const queryRows=vi.hoisted(()=>vi.fn());
 vi.mock('../src/google.js',()=>({gsc:vi.fn(),pageSegments:vi.fn(),queryPageRows:vi.fn(),queryRows}));
@@ -18,7 +18,7 @@ beforeEach(()=>{
   for(const key of envKeys)previousEnv[key]=process.env[key];
   Object.assign(process.env,{SITE_SIGNAL_DATA_DIR:dataDir,SITE_SIGNAL_PROFILE:'query-rows-test',SITE_DOMAIN:'example.com',GSC_PROPERTY:'sc-domain:example.com',ANALYTICS_PROVIDER:'none'});
   const c=config(),range=periods(c.lag,30),page={url:'https://example.com/page',key:'/page',clicks:3,impressions:1000,ctr:.003,position:5},empty={provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}};
-  new Store(dataDir).save(snapshotId(c,range.current),{profile:c.profile,analyticsProvider:'none',range,gsc:[page],previousGsc:[page],analytics:{current:empty,previous:empty},coverage:{gscTruncated:false},createdAt:new Date().toISOString()});
+  new Store(dataDir).save(snapshotId(c,range.current),{identity:evidenceIdentity(c),profile:c.profile,analyticsProvider:'none',range,gsc:[page],previousGsc:[page],analytics:{current:empty,previous:empty},coverage:{gscTruncated:false},createdAt:new Date().toISOString()});
   queryRows.mockReset();
   clearQueryRowCache();
 });

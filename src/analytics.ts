@@ -1,5 +1,5 @@
 import {google} from 'googleapis';
-import {config,AnalyticsEvidence,AnalyticsMetricValue,AnalyticsProviderName,AnalyticsRow,Config,normalize,Period} from './core.js';
+import {config,AnalyticsEvidence,AnalyticsMetricValue,AnalyticsProviderName,AnalyticsRow,Config,normalize,pageKey,Period} from './core.js';
 import {oauth} from './google.js';
 
 export type ProviderHealthState='available'|'unavailable'|'authentication_failed'|'missing_permissions'|'incompatible';
@@ -152,9 +152,9 @@ export class EngageProvider implements AnalyticsProvider{
   }
   private aggregate(rows:AnalyticsRow[]){
     const groups=new Map<string,AnalyticsRow[]>();
-    for(const row of rows){const key=normalize(row.url,this.c),group=groups.get(key)||[];group.push(row);groups.set(key,group)}
+    for(const row of rows){const key=pageKey(row.url,this.c);if(!key)throw new EngageProviderError('incompatible','Umbraco Engage returned a page URL outside the configured site.');const group=groups.get(key)||[];group.push(row);groups.set(key,group)}
     let duplicates=0;
-    const result=[...groups.entries()].map(([url,group])=>{
+    const result=[...groups.values()].map(group=>{
       if(group.length===1)return group[0];
       duplicates+=group.length-1;
       const metrics=Object.fromEntries(engageMetrics.map(metric=>{
@@ -163,7 +163,8 @@ export class EngageProvider implements AnalyticsProvider{
         if(!engageAdditiveMetrics.has(metric))return[metric,null];
         return[metric,(values as number[]).reduce((sum,value)=>sum+value,0)];
       }));
-      return{url,acquisition:null,metrics};
+      const first=group[0].url,cleanPath=normalize(first,this.c),cleanUrl=first.startsWith('/')&&!first.startsWith('//')?cleanPath:new URL(cleanPath,new URL(first,`https://${this.c.domain}`)).toString();
+      return{url:cleanUrl,acquisition:null,metrics};
     });
     return{rows:result,duplicates};
   }

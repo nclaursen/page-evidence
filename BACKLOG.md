@@ -140,3 +140,10 @@ Persist comparable property-level outcome counts across snapshots for configured
 ## Before starting any item
 
 State the real decision it supports, who makes that decision, and what evidence would justify keeping it. If the current MCP response can answer the question with a small workflow or documentation change, prefer that over another feature.
+
+## Completed 2026-10-16 — evidence identity and CI
+
+- New snapshots, history/review comparisons, query caches and digest checkpoints are scoped to verified site/property/settings identity. Legacy snapshots remain stored but are excluded when provenance cannot be verified; annotations remain intact.
+- Shared host-aware page matching separates subdomains and ports across page evidence, reviews, digest, Engage aggregation and external search. The path-only source helper remains separate.
+- Added GA4 adapter fixtures, cross-provider identity regressions and package build/test CI for Node 22/24. See [compatibility and validation](docs/evidence-identity.md).
+- Action records still rely on separate private instance directories. Live instance upgrades and historical-data adoption were not performed. Query-to-page drift and decision-record workflows remain separate future increments.

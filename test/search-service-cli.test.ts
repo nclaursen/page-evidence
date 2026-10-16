@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
-import {config,periods,snapshotId,Store} from '../src/core.js';
+import {config,evidenceIdentity,periods,snapshotId,Store} from '../src/core.js';
 
 const queryRows=vi.hoisted(()=>vi.fn());
 vi.mock('../src/google.js',()=>({gsc:vi.fn(),queryRows,pageSegments:vi.fn(),queryPageRows:vi.fn()}));
@@ -15,7 +15,7 @@ beforeEach(()=>{
   vi.stubEnv('PAGE_EVIDENCE_DATA_DIR',dataDir);vi.stubEnv('PAGE_EVIDENCE_PROFILE','search-test');vi.stubEnv('SITE_DOMAIN','example.com');vi.stubEnv('GSC_PROPERTY','sc-domain:example.com');vi.stubEnv('ANALYTICS_PROVIDER','none');vi.stubEnv('REPORTING_LAG_DAYS','3');vi.stubEnv('PAGE_EVIDENCE_REPOSITORY_PATH','');
   const c=config(),range=periods(c.lag,30),pages=[{url:'https://example.com/cms',key:'/cms',clicks:10,impressions:1500,position:10,ctr:10/1500},{url:'https://example.com/other',key:'/other',clicks:1,impressions:150,position:12,ctr:1/150}];
   const analytics={provider:'none',metricLabels:{},rows:[],sourceSummaries:[],coverage:{complete:true,limitations:[]}};
-  const store=new Store(dataDir);try{store.save(snapshotId(c,range.current),{profile:c.profile,analyticsProvider:'none',createdAt:new Date().toISOString(),range,gsc:pages,previousGsc:pages,analytics:{current:analytics,previous:analytics},coverage:{gscTruncated:false}})}finally{store.db.close()}
+  const store=new Store(dataDir);try{store.save(snapshotId(c,range.current),{identity:evidenceIdentity(c),profile:c.profile,analyticsProvider:'none',createdAt:new Date().toISOString(),range,gsc:pages,previousGsc:pages,analytics:{current:analytics,previous:analytics},coverage:{gscTruncated:false}})}finally{store.db.close()}
   queryRows.mockReset();queryRows.mockResolvedValue({rows:[{query:'enterprise cms',clicks:5,impressions:500,position:10,ctr:.01}],truncated:false});clearQueryRowCache();
 });
 afterEach(()=>{clearQueryRowCache();vi.unstubAllEnvs();fs.rmSync(dataDir,{recursive:true,force:true})});

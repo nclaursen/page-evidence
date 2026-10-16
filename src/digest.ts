@@ -1,9 +1,9 @@
-import {normalize,type Config} from './core.js';
+import {pageKey,type Config} from './core.js';
 
 /** Compare rolling page totals, not individual days or causal effects. */
 export function digestChanges(current:any,previous:any,c:Config,limit:number){
-  const now=new Map<string,any>(current.gsc.map((row:any)=>[normalize(row.url,c),row]));
-  const before=new Map<string,any>(previous.gsc.map((row:any)=>[normalize(row.url,c),row]));
+  const now=new Map<string,any>(current.gsc.filter((row:any)=>pageKey(row.url,c)).map((row:any)=>[pageKey(row.url,c)!,row]));
+  const before=new Map<string,any>(previous.gsc.filter((row:any)=>pageKey(row.url,c)).map((row:any)=>[pageKey(row.url,c)!,row]));
   const gains:any[]=[],declines:any[]=[],maturing:any[]=[],missing:any[]=[];
   for(const key of new Set([...now.keys(),...before.keys()])){
     const a=now.get(key),b=before.get(key);
