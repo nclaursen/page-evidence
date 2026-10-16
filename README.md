@@ -133,7 +133,7 @@ For a local MCP host, run:
 page-evidence mcp
 ```
 
-The MCP tools are `get_site_status`, `get_change_digest`, `get_cache_status`, `refresh_site_evidence`, `find_content_opportunities`, `find_question_opportunities`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
+The MCP tools are `get_site_status`, `get_change_digest`, `get_cache_status`, `refresh_site_evidence`, `find_content_opportunities`, `find_question_opportunities`, `find_query_page_drift`, `get_page_context`, `get_page_investigation_context`, `get_question_page_context`, `get_page_segments`, `get_page_lifecycle`, `get_page_history`, `get_query_entry_exit`, `get_measurement_readiness`, `get_repository_context`, `get_internal_link_context`, `review_local_actions`, `get_action_review_context`, and `record_local_action`.
 
 ### Change digest and cache controls
 
@@ -225,3 +225,7 @@ The executable is now `page-evidence`. The old `site-signal` command remains an 
 ## Change history and accumulated case knowledge
 
 Use [page-evidence-learning-loop](skills/page-evidence-learning-loop/SKILL.md) alongside investigations to retrieve prior cases and, when local logging is authorised, record proposals, actual changes, user feedback and follow-up evidence. The [existing-field workflow](skills/page-evidence-learning-loop/references/change-log.md) preserves the original hypothesis through full-record updates. The goal is traceable, reusable experience; improved advice or traffic is not assumed. A first real-case retrieval/review/reuse pilot has been exercised; a comparable before/after outcome review remains pending. This is a client workflow, not automatic server-side learning or an immutable audit log.
+
+## Query-to-page drift
+
+`find_query_page_drift` compares observed landing pages for exact GSC queries, with optional exact-query selection, 7/30/60/90-day windows, bounded page evidence and explicit coverage. CLI: `page-evidence query-page-drift --query="enterprise cms" --days=30`. Discovery returns observed leader/page-set changes; ties and absent periods remain explicit. This is GSC-only evidence, not a cannibalization diagnosis. See [usage, metrics and limitations](docs/query-page-drift.md).

@@ -133,7 +133,7 @@ Start with a skill using the MCP, rather than adding model training or semantic 
 
 **Available first workflow:** [page-evidence-learning-loop](skills/page-evidence-learning-loop/SKILL.md), version `change-learning-v1`. Its [field mapping](skills/page-evidence-learning-loop/references/change-log.md) documents how to preserve the original case when updating the existing full-upsert API. No schema change or immutable-history guarantee is implied.
 
-### v0.9 candidate — query-to-page drift
+### Query-to-page drift — implemented
 
 **Decision improved:** Has Google started associating an important query with a different landing page, or is the same query moving between several pages in a way that warrants investigation?
 
@@ -141,7 +141,7 @@ Return bounded query-and-page evidence across comparable periods for a selected 
 
 Keep discovery deterministic and GSC-scoped. The chat client must inspect the relevant page sources before proposing consolidation, differentiation, internal linking, or no action.
 
-**Target:** consider for v0.9.0 after the v0.8.0 history and review loop has been validated.
+**Status:** implemented on 2026-10-16 as shared GSC evidence through `find_query_page_drift` and `query-page-drift`. Discovery and exact-query inspection retain raw metrics, ties, missing periods, source identity and coverage. See [usage and limitations](docs/query-page-drift.md).
 
 **Done when:** a client can identify a measured query whose observed landing-page association changed between comparable periods, inspect every returned page and coverage limitation, and avoid presenting incomplete top-row evidence as a complete query history.
 
@@ -190,4 +190,4 @@ State the real decision it supports, who makes that decision, and what evidence 
 - New snapshots, history/review comparisons, query caches and digest checkpoints are scoped to verified site/property/settings identity. Legacy snapshots remain stored but are excluded when provenance cannot be verified; annotations remain intact.
 - Shared host-aware page matching separates subdomains and ports across page evidence, reviews, digest, Engage aggregation and external search. The path-only source helper remains separate.
 - Added GA4 adapter fixtures, cross-provider identity regressions and package build/test CI for Node 22/24. See [compatibility and validation](docs/evidence-identity.md).
-- Action records still rely on separate private instance directories. Live instance upgrades and historical-data adoption were not performed. Query-to-page drift and decision-record workflows remain separate future increments.
+- Action records still rely on separate private instance directories. Live instance upgrades and historical-data adoption were not performed. Query-to-page drift and the initial change-learning workflow are recorded separately above; comparable outcome reviews still require sufficient evidence.

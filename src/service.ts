@@ -12,6 +12,7 @@ import {reviewAssessment,validDate} from './action-review.js';
 import {MAX_EXTERNAL_BYTES,parseAhrefsCsv} from './ahrefs-csv.js';
 import {externalDatasetSchema,externalDatasetSummary} from './external-search.js';
 import {analyzeSearchOpportunities,assessmentSchema,discoverSearchPages,searchActions,sitePageKey,type SearchAssessment,type SearchOptions,type SearchPageContext,type SearchSnapshot} from './search-opportunities.js';
+import {queryPageDrift,type DriftOptions} from './query-page-drift.js';
 
 function withReadiness(snapshot:any,c:any){
   const gscTruncated=Boolean(snapshot.coverage?.gscTruncated);
@@ -27,9 +28,23 @@ export function queryCoverage(rows:any[],page:any,limit:number){const subtotal=r
 
 type QueryFetch={rows:Query[];truncated:boolean;fetchedAt:string};
 const queryRowCache=new Map<string,{scope:string;createdAt:number;promise:Promise<QueryFetch>}>();
+type QueryPageFetch=Awaited<ReturnType<typeof queryPageRows>>&{fetchedAt:string};
+const queryPageRowCache=new Map<string,{scope:string;createdAt:number;promise:Promise<QueryPageFetch>}>();
 const cacheScope=(c:ReturnType<typeof config>)=>JSON.stringify([c.dataDir,evidenceIdentity(c).fingerprint]);
-export function clearQueryRowCache(){queryRowCache.clear()}
-function clearProfileQueries(c:ReturnType<typeof config>){const scope=cacheScope(c);let removed=0;for(const [key,entry] of queryRowCache)if(entry.scope===scope){queryRowCache.delete(key);removed++}return removed}
+export function clearQueryRowCache(){queryRowCache.clear();queryPageRowCache.clear()}
+function clearProfileQueries(c:ReturnType<typeof config>){const scope=cacheScope(c);let removed=0;for(const cache of [queryRowCache,queryPageRowCache])for(const [key,entry] of cache)if(entry.scope===scope){cache.delete(key);removed++}return removed}
+async function cachedQueryPageRows(c:ReturnType<typeof config>,period:Period,query?:string){
+  const scope=cacheScope(c),key=JSON.stringify([scope,query??null,period.start,period.end]);
+  let entry=queryPageRowCache.get(key);const cached=Boolean(entry&&Date.now()-entry.createdAt<QUERY_TTL_MS);
+  if(!cached){
+    if(queryPageRowCache.size>=10)queryPageRowCache.delete(queryPageRowCache.keys().next().value as string);
+    const promise=queryPageRows(c,period,query).then(result=>({...result,fetchedAt:new Date().toISOString()}));
+    entry={scope,createdAt:Date.now(),promise};queryPageRowCache.set(key,entry);
+    promise.catch(()=>{if(queryPageRowCache.get(key)===entry)queryPageRowCache.delete(key)});
+  }
+  const result=await entry!.promise;
+  return{...result,freshness:freshness(result.fetchedAt,QUERY_TTL_MS,cached)};
+}
 async function pageQueryRows(c:ReturnType<typeof config>,period:Period,pageUrl:string){
   const scope=cacheScope(c),key=JSON.stringify([scope,pageUrl,period.start,period.end]);
   let entry=queryRowCache.get(key);const cached=Boolean(entry&&Date.now()-entry.createdAt<QUERY_TTL_MS);
@@ -61,10 +76,24 @@ export async function sync(refresh=false,windowDays=30){
 export function cacheStatus(windowDays=30){
   if(!validWindowDays(windowDays))throw Error('windowDays must be one of 7, 30, 60, or 90.');
   const c=config(),range=periods(c.lag,windowDays),id=snapshotId(c,range.current),store=new Store(c.dataDir);
-  try{const raw=store.get(id),saved=snapshotMatches(raw,c)?raw:null,entries=[...queryRowCache.values()].filter(entry=>entry.scope===cacheScope(c));return{profile:c.profile,windowDays,snapshotId:id,periods:range,snapshot:{present:Boolean(saved),...freshness(saved?.createdAt,SNAPSHOT_TTL_MS,Boolean(saved))},queryCache:{scope:'This process and profile only',entries:entries.length,expiredEntries:entries.filter(entry=>Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},controls:{refreshTool:'refresh_site_evidence',effect:'Refetch the selected snapshot and invalidate this profile’s in-process query cache. Query rows are fetched on the next query request; historical snapshots and actions are retained.'}}}finally{store.db.close()}
+  try{const raw=store.get(id),saved=snapshotMatches(raw,c)?raw:null,entries=[...queryRowCache.values()].filter(entry=>entry.scope===cacheScope(c));return{profile:c.profile,windowDays,snapshotId:id,periods:range,snapshot:{present:Boolean(saved),...freshness(saved?.createdAt,SNAPSHOT_TTL_MS,Boolean(saved))},queryCache:{scope:'This process and profile only',entries:entries.length,expiredEntries:entries.filter(entry=>Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},queryPageCache:{scope:'This process and configuration only',entries:[...queryPageRowCache.values()].filter(entry=>entry.scope===cacheScope(c)).length,expiredEntries:[...queryPageRowCache.values()].filter(entry=>entry.scope===cacheScope(c)&&Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},controls:{refreshTool:'refresh_site_evidence',effect:'Refetch the selected snapshot and invalidate this profile’s in-process query cache. Query rows are fetched on the next query request; historical snapshots and actions are retained.'}}}finally{store.db.close()}
 }
 
 export async function refreshEvidence(windowDays=30){const snapshot=await sync(true,windowDays);return{profile:snapshot.profile,snapshotId:snapshot.id,periods:snapshot.range,freshness:snapshot.freshness,queryCacheInvalidated:true,queryRowsRefetched:false}}
+
+export async function findQueryPageDrift(input:DriftOptions&{windowDays?:number;refresh?:boolean}={}){
+  const windowDays=input.windowDays??30,limit=input.limit??5,pageLimit=input.pageLimit??5;
+  if(!validWindowDays(windowDays))throw Error('windowDays must be one of 7, 30, 60, or 90.');
+  if(!Number.isInteger(limit)||limit<1||limit>20)throw Error('limit must be a whole number from 1 to 20.');
+  if(!Number.isInteger(pageLimit)||pageLimit<2||pageLimit>20)throw Error('pageLimit must be a whole number from 2 to 20.');
+  if(input.query!==undefined&&(typeof input.query!=='string'||!input.query.trim()||input.query.trim().length>200))throw Error('query must contain 1 to 200 characters after trimming.');
+  const c=config(),range=periods(c.lag,windowDays),query=input.query?.trim();
+  if(input.refresh)clearProfileQueries(c);
+  const [current,previous]=await Promise.all([cachedQueryPageRows(c,range.current,query),cachedQueryPageRows(c,range.previous,query)]);
+  const result=queryPageDrift(current.rows,previous.rows,c,{query,limit,pageLimit});
+  const coverage=(value:QueryPageFetch)=>({fetchedRows:value.rows.length,rowCap:c.cap,capReached:value.truncated,fetchedAt:value.fetchedAt});
+  return{profile:c.profile,site:{domain:c.domain,gscProperty:c.gscProperty},analyticsProvider:c.analyticsProvider,identity:evidenceIdentity(c),source:{provider:'gsc',searchType:'web',dataState:'final',aggregationType:'byPage',dimensions:['query','page'],timezone:'America/Los_Angeles',analyticsUsed:false},windowDays,periods:range,reportingLagDays:c.lag,freshness:{current:current.freshness,previous:previous.freshness},...result,coverage:{...result.coverage,queriesReturned:result.candidates.length,current:coverage(current),previous:coverage(previous),boundedTopRows:true},limitations:['Changes describe only the fetched GSC query/page rows. Google can omit low-volume queries even when the configured cap is not reached.','A missing page or period is unavailable evidence, not zero traffic or proof that Google stopped selecting that page.','Leading pages use observed impressions; tied leaders do not establish a unique leading-page change. Tracking/root-www aliases use the shared page-identity policy; duplicate metrics are aggregated with impression-weighted position.','No cannibalization, causal effect or content edit is inferred. Inspect the returned pages and their source before recommending an action.','Query/page datasets are cached in this process for up to one hour and are not persisted as historical snapshots. Record scoped findings in the local action log when authorised.']};
+}
 
 export function importExternalSearchEvidence(filePath:string){
   if(!filePath||typeof filePath!=='string')throw Error('A local export path is required.');

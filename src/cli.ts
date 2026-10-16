@@ -8,6 +8,7 @@ import {safeQueryOutput} from './query-safety.js';
 import {cacheStatus,changeDigest,refreshEvidence} from './service.js';
 import fs from 'node:fs';
 import {findSearchOpportunities,importExternalSearchEvidence} from './service.js';
+import {findQueryPageDrift} from './service.js';
 import {assessmentSchema,renderSearchOpportunities,type SearchAction} from './search-opportunities.js';
 
 const wait=<T>(promise:Promise<T>)=>Promise.race([promise,new Promise<T>((_,reject)=>setTimeout(()=>reject(Error('Timed out after 15 seconds')),15000))]);
@@ -27,6 +28,7 @@ try{
       ...(option('minimum-impressions')?{minimumImpressions:Number(option('minimum-impressions'))}:{}),...(option('minimum-demand')?{minimumDemand:Number(option('minimum-demand'))}:{}),...(option('max-external-age-days')?{maxExternalAgeDays:Number(option('max-external-age-days'))}:{})});
     console.log(format==='text'?renderSearchOpportunities(safeQueryOutput(result) as typeof result):queryJson(result));
   }
+  else if(command==='query-page-drift')console.log(queryJson(await findQueryPageDrift({query:option('query'),windowDays:windowDays(args),limit:Number(option('limit')??5),pageLimit:Number(option('page-limit')??5),refresh:args.includes('--refresh')})));
   else if(command==='auth')await auth(config());
   else if(command==='doctor'){
     const c=config(),period={start:'2025-01-01',end:'2025-01-02'},output:any={...(await status()),checks:{livePage:false,gsc:false,analytics:false},guidance:[]};
@@ -49,5 +51,5 @@ try{
   else if(command==='actions'){const operation=args.shift();if(operation==='list')console.log(actionLog());else if(operation==='review')console.log(actionReviewContext(args[0],args.some(arg=>arg.startsWith('--days='))?windowDays(args):undefined));else{const values:any=kv(args);console.log(recordAction({...values,action_type:values.actionType||values.action_type||'other'}))}}
   else if(command==='demo')console.log(JSON.stringify({message:'Page Evidence is local-first.'},null,2));
   else if(command==='mcp')await import('./mcp.js');
-  else throw Error('Use: external-import PATH | opportunities [--external=PATH|--external-id=ID] [--format=json|text] [--days=7|30|60|90] [--limit=10] [--page-budget=10] [--action=IMPROVE|EXPAND|CREATE|CONSOLIDATE|IGNORE] [--independent-support] [--assessments=PATH] [--refresh] | digest [--days=7|30|60|90] [--limit=5] [--refresh] [--preview] | cache-status [--days=7|30|60|90] | refresh [--days=7|30|60|90] | doctor | auth | sync [--days=7|30|60|90] | report [--days=7|30|60|90] | page URL [--days=7|30|60|90] | investigate URL [--days=7|30|60|90] [--question=text] | question-context URL --question=text [--days=7|30|60|90] | brief URL [--days=7|30|60|90] | history URL [--days=7|30|60|90] [--limit=6] | segments URL country|device|searchAppearance [--days=7|30|60|90] | questions [--days=7|30|60|90] [--limit=30] | actions list|review ACTION_ID|create');
+  else throw Error('Use: query-page-drift [--query=text] [--days=7|30|60|90] [--limit=5] [--page-limit=5] [--refresh] | external-import PATH | opportunities [--external=PATH|--external-id=ID] [--format=json|text] [--days=7|30|60|90] [--limit=10] [--page-budget=10] [--action=IMPROVE|EXPAND|CREATE|CONSOLIDATE|IGNORE] [--independent-support] [--assessments=PATH] [--refresh] | digest [--days=7|30|60|90] [--limit=5] [--refresh] [--preview] | cache-status [--days=7|30|60|90] | refresh [--days=7|30|60|90] | doctor | auth | sync [--days=7|30|60|90] | report [--days=7|30|60|90] | page URL [--days=7|30|60|90] | investigate URL [--days=7|30|60|90] [--question=text] | question-context URL --question=text [--days=7|30|60|90] | brief URL [--days=7|30|60|90] | history URL [--days=7|30|60|90] [--limit=6] | segments URL country|device|searchAppearance [--days=7|30|60|90] | questions [--days=7|30|60|90] [--limit=30] | actions list|review ACTION_ID|create');
 }catch(error){console.error(error instanceof Error?error.message:error);process.exit(1)}
