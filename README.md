@@ -221,3 +221,7 @@ Read [SECURITY.md](SECURITY.md). Never commit `.env`, `~/.site-signal`, report f
 ## Compatibility after the rename
 
 The executable is now `page-evidence`. The old `site-signal` command remains an alias. Use `PAGE_EVIDENCE_*` variables for new configurations; existing `SITE_SIGNAL_*` variables remain supported, with the new names taking precedence. The default storage directory remains `~/.site-signal` and the database filename remains `site-signal.sqlite`, so existing credentials and action logs remain available without a schema migration. Legacy snapshots remain stored, but only identity-verified snapshots are reused for analysis; see the compatibility notes above. Existing local checkout paths and MCP entry names can stay as they are.
+
+## Change history and accumulated case knowledge
+
+Use [page-evidence-learning-loop](skills/page-evidence-learning-loop/SKILL.md) alongside investigations to retrieve prior cases and, when local logging is authorised, record proposals, actual changes, user feedback and follow-up evidence. The [existing-field workflow](skills/page-evidence-learning-loop/references/change-log.md) preserves the original hypothesis through full-record updates. The goal is traceable, reusable experience; improved advice or traffic is not assumed. A real longitudinal pilot remains pending. This is a client workflow, not automatic server-side learning or an immutable audit log.

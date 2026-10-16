@@ -1,0 +1,3 @@
+interface:
+  display_name: "Page Evidence Learning Loop"
+  short_description: "Record changes and retrieve prior Page Evidence cases"

@@ -89,6 +89,50 @@ Set `GA4_OUTCOME_EVENT_NAMES` only for events that represent a meaningful outcom
 
 ## Candidate data primitives — build only when a real decision needs them
 
+### Record recommendations, changes and follow-up
+
+**Status:** initial client workflow available 2026-10-16; existing log fields are used. A real longitudinal pilot is pending. Added 2026-10-08.
+
+**Decision improved:** Can the person reviewing an edit understand why this change was chosen, what evidence supported it, and what would make us reconsider it?
+
+Keep a durable decision record linked to the page's local action. Capture the reasoning when the edit is proposed or accepted, before its outcome is known:
+
+- the observed problem, with profile, provider, periods, snapshot/evidence references, and relevant source passages;
+- the interpretation or hypothesis, clearly separated from measured facts;
+- the chosen edit and why it addresses the problem;
+- alternatives considered, including monitoring or making no change, and why they were not chosen;
+- the expected observable result, uncertainty, and a review date or evidence condition.
+
+Preserve the original rationale when recording what was actually implemented and the later review. Do not reconstruct a confident explanation from the outcome after the fact. An accepted suggestion and an implemented edit are different states.
+
+**First approach:** use the existing `record_local_action` description, hypothesis, baseline, review date, and outcome notes with a small client-side decision-record template. Add structured local fields or retrieval only if a real review shows that the existing annotations cannot preserve or retrieve the required context reliably. Editorial reasoning remains client-authored; the MCP stores and returns it with provenance.
+
+**Done when:** a reviewer can retrieve one edit's original evidence, rationale, alternatives, expected result, implementation details, and subsequent review without relying on the original chat. Missing evidence remains explicit.
+
+### Feedback loop for accumulated case knowledge
+
+**Status:** initial logging/retrieval workflow available 2026-10-16; a real follow-up/reuse pilot remains pending. Added 2026-10-08. Uses traceable local cases and the existing action-review evidence.
+
+**Decision supported:** Can later investigations retrieve what was recommended, what changed, what feedback was given and what happened afterwards on the same site? The requirement is recorded, reusable experience; better advice or performance is not assumed.
+
+Start with a skill using the MCP, rather than adding model training or semantic analysis to the server. The MCP supplies durable local evidence and feedback; the skill retrieves relevant reviewed cases before making a recommendation. More stored feedback alone does not demonstrate better analysis.
+
+**Proposed first loop:**
+
+1. Save the recommendation, evidence references, original rationale, and skill/rule version with the local action.
+2. Record explicit reviewer feedback: accepted, adjusted, or dismissed, with the reason and correction. Separate editorial usefulness from measured performance; acceptance is not proof that the recommendation was correct.
+3. After implementation, use `get_action_review_context` to inspect comparable before/after evidence and coverage. Record whether the result supports, contradicts, or cannot resolve the original hypothesis, including concurrent changes. Sparse or incompatible evidence stays inconclusive; a before/after movement does not establish causality.
+4. Distil reviewed cases into proposed, scoped lessons, such as checking whether an answer already exists before suggesting expansion. Retain links to the originating cases and contradictory examples. A human reviews a lesson before it becomes a reusable skill instruction; the MCP must not silently rewrite skills or its own rules.
+5. Retrieve applicable approved lessons for the next investigation and disclose which ones influenced the recommendation. Keep lessons profile-scoped by default; generalising across sites requires an explicit review.
+
+**First approach:** pilot the workflow with existing local actions and outcome notes. Store generated case reviews and proposed lessons under `outputs/`, outside skill and agent configuration. Consider structured feedback fields and a bounded case-retrieval primitive only when the pilot exposes a concrete persistence or retrieval gap.
+
+**Validation:** verify that original proposals survive feedback, acceptance is separate from implementation, inconclusive results stay explicit, and a later investigation can retrieve and cite a prior case. Check capture and retrieval fidelity rather than assuming better recommendations or traffic. Any later promoted skill/rule change needs its own review and validation.
+
+**Done when:** a later investigation retrieves an earlier case and states what it reused or reconsidered, with links to the original recommendation, actual change, feedback and follow-up evidence. Missing or contradictory evidence remains explicit. Lessons can be revised or retired; promotion into persistent rules needs human review. No model API, automatic site edit or claim of autonomous self-training is introduced.
+
+**Available first workflow:** [page-evidence-learning-loop](skills/page-evidence-learning-loop/SKILL.md), version `change-learning-v1`. Its [field mapping](skills/page-evidence-learning-loop/references/change-log.md) documents how to preserve the original case when updating the existing full-upsert API. No schema change or immutable-history guarantee is implied.
+
 ### v0.9 candidate — query-to-page drift
 
 **Decision improved:** Has Google started associating an important query with a different landing page, or is the same query moving between several pages in a way that warrants investigation?
