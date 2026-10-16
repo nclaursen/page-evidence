@@ -91,7 +91,7 @@ Set `GA4_OUTCOME_EVENT_NAMES` only for events that represent a meaningful outcom
 
 ### Record recommendations, changes and follow-up
 
-**Status:** initial client workflow available 2026-10-16; existing log fields are used. A real longitudinal pilot is pending. Added 2026-10-08.
+**Status:** initial client workflow available 2026-10-16; existing log fields are used. A first real-case retrieval/review/reuse pilot was exercised on 2026-10-16; a comparable before/after outcome review is pending. Added 2026-10-08.
 
 **Decision improved:** Can the person reviewing an edit understand why this change was chosen, what evidence supported it, and what would make us reconsider it?
 
@@ -111,7 +111,7 @@ Preserve the original rationale when recording what was actually implemented and
 
 ### Feedback loop for accumulated case knowledge
 
-**Status:** initial logging/retrieval workflow available 2026-10-16; a real follow-up/reuse pilot remains pending. Added 2026-10-08. Uses traceable local cases and the existing action-review evidence.
+**Status:** initial logging/retrieval workflow available 2026-10-16; a first real-case retrieval/review/reuse pilot was exercised on 2026-10-16; comparable outcome evidence remains pending. Added 2026-10-08. Uses traceable local cases and the existing action-review evidence.
 
 **Decision supported:** Can later investigations retrieve what was recommended, what changed, what feedback was given and what happened afterwards on the same site? The requirement is recorded, reusable experience; better advice or performance is not assumed.
 

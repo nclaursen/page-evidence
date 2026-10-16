@@ -40,6 +40,19 @@ afterEach(()=>{
 });
 
 describe('stored history and review evidence',()=>{
+  it.each([undefined,null,''])('persists the returned action ID when an MCP-style input has id=%s',id=>{
+    const result=recordAction({id,url:'https://example.com/page',description:'Original proposal',hypothesis:'Unverified expectation',status:'Proposed',action_type:'content_update'});
+    const store=new Store(dataDir);
+    try{
+      expect(result.actionId).toMatch(/^act_/);
+      expect(store.actionById(result.actionId)).toMatchObject({id:result.actionId,description:'Original proposal',hypothesis:'Unverified expectation'});
+      expect(actionReviewContext(result.actionId).action.id).toBe(result.actionId);
+      recordAction({id:result.actionId,url:'https://example.com/page',description:'Original proposal',hypothesis:'Unverified expectation',status:'Accepted',action_type:'content_update',outcome_notes:'User feedback recorded.'});
+      expect(store.actions()).toHaveLength(1);
+      expect(store.actionById(result.actionId)).toMatchObject({status:'Accepted',description:'Original proposal',outcome_notes:'User feedback recorded.'});
+    }finally{store.db.close()}
+  });
+
   it('accepts a high-volume seven-day before/after review without downgrading its duration',()=>{
     const store=new Store(dataDir);
     store.save('week-before',snapshot('2026-08-26','2026-09-01',100,2000));

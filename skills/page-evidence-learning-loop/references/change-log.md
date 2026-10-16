@@ -2,7 +2,7 @@
 
 Requirement clarified by Niels on 16 October 2026: record recommendations, decisions, actual changes and subsequent observations so later AI investigations can retrieve and learn from the history. Capturing that history is the requirement; better advice or performance is not assumed.
 
-Status: first client workflow available as [page-evidence-learning-loop](../SKILL.md), version `change-learning-v1`. Uses existing MCP tools and action fields; no server model calls, schema migration, background scheduler or automatic lesson promotion. It can be used with either instance when its MCP tools are connected. A real longitudinal pilot is still pending.
+Status: first client workflow available as [page-evidence-learning-loop](../SKILL.md), version `change-learning-v1`. Uses existing MCP tools and action fields; no server model calls, schema migration, background scheduler or automatic lesson promotion. It can be used with either instance when its MCP tools are connected. A first real-case retrieval/review/reuse pilot was exercised on 16 October; a comparable before/after outcome review remains pending.
 
 ## One case, successive entries
 
@@ -69,3 +69,5 @@ Before the next recommendation, retrieve page cases and relevant root-level meas
 These are workflow acceptance checks, not evidence that the AI has improved. Use synthetic data for storage validation; do not manufacture historical cases in a live instance. Later structured fields, append-only events or bounded case retrieval need a demonstrated persistence/retrieval gap.
 
 Validation on 16 October 2026: skill frontmatter and local reference links passed checks. An isolated synthetic action was recorded as a proposal, updated with feedback and verified-implementation text, reviewed as inconclusive without history, and retrieved again with its original hypothesis, dates and accumulated notes intact. This verifies the existing storage path for the procedure; a later real AI investigation using a real prior case remains to be piloted. No live instance data was changed for this validation.
+
+Real-case pilot on 16 October 2026: retrieved an existing content-change case, checked its Git change and current local source, recorded an inconclusive review with explicit missing history/publication evidence, and reused the case to choose publication verification instead of proposing a duplicate answer. Original fields were preserved and the appended notes were read back. The case exposed a generated-ID persistence bug; the core fix has regression coverage, and only the one uniquely identified legacy row used in the authorised pilot received a targeted ID repair. Other legacy rows were left untouched. No private case content or metrics are included here.
