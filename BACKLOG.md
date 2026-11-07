@@ -1,6 +1,6 @@
 # Page Evidence backlog
 
-Updated: 2026-10-16, after query-to-page drift and local action-ID cleanup.
+Updated: 2026-11-07, after selected-page HTTP evidence and search opportunity improvements.
 
 This is the single product decision backlog. It answers: **what page should I investigate next, why, and what can the data not prove?** An item belongs here only if it improves that decision, makes a deliberate change reviewable, or prevents a measurement mistake. Page Evidence stays local-first and makes no changes to websites or external services.
 
@@ -24,6 +24,7 @@ Do not add an MCP feature unless it returns data or durable local state a client
 | History and action review | Local observations, typed annotations, baselines, review dates and descriptive before/after evidence; no causal attribution. |
 | Evidence identity and page matching | Site/property/settings isolation, host-aware page keys and exclusion of unverifiable legacy snapshots. See [evidence identity](docs/evidence-identity.md). |
 | Query-to-page drift | `find_query_page_drift` and `query-page-drift`, including exact-query inspection, ties, missing periods and bounded discovery. See [usage](docs/query-page-drift.md). Live verification remains open. |
+| Selected-page HTTP evidence | Explicit `get_page_http_evidence` / `page-http URL`: bounded same-site status/redirect observations and static HTML canonical references, with partial failures and retrieval limits. See [plan](docs/2026-11-07-http-evidence-plan.md). Live rollout remains unverified. |
 | Change-learning workflow | Recommendation, implementation, feedback and case retrieval use existing local action fields. First real-case retrieval/review/reuse pilot completed; comparable outcome review remains open. See [workflow](skills/page-evidence-learning-loop/SKILL.md). |
 | Action-ID repair | Missing-ID generation fixed in shared storage. Seven remaining personal-instance records repaired with private backup; all 11 records have unique IDs. Other instances were not migrated. |
 | Validation | MCP contracts, adapter fixtures and package build/test CI on Node 22/24. Latest implementation: 196 tests passed and both hosted CI jobs passed. These are not live-provider verification. |
@@ -40,7 +41,7 @@ Do not add an MCP feature unless it returns data or durable local state a client
 
 | Order | Candidate | Decision and completion evidence |
 | --- | --- | --- |
-| 1 | Canonical, redirect and HTTP-status evidence | Explain a selected URL's unexpected search behavior using a bounded observed chain, canonical and retrieval time. Detailed scope below. |
+| Completed in checkout | Canonical, redirect and HTTP-status evidence | Bounded observed chain, static HTML canonicals and retrieval time for one selected URL. See [plan](docs/2026-11-07-http-evidence-plan.md); live rollout remains unverified. |
 | 2 | Provider availability and measurement readiness | Distinguish unsupported, missing, observed zero and failed evidence across GA4/Matomo/Engage/none. Remove GA4-specific acquisition assumptions from shared readiness; adapters supply source semantics. Validate the same readiness cases across providers. |
 | 3 | Bounded URL inventory | Show known URLs, source mappings and gaps from an explicit repository/sitemap source. Detailed scope below. |
 | Completed in checkout | Emerging-query evidence in the digest | Opt-in enrichment of three returned flagged pages, five examples per group, adjacent-period coverage and per-page failure states. See the 2026-11-07 roadmap and plan below; live rollout is not verified. |
@@ -120,6 +121,8 @@ Return a small, explicit inventory of pages from a configured sitemap or reposit
 **Done when:** a client can list mapped URLs, unmapped URLs, and missing evidence with a declared inventory source and no guessed matches.
 
 ### Canonical and redirect evidence
+
+**Status:** implemented in this checkout, 2026-11-07; live rollout remains unverified. See [scope and verification](docs/2026-11-07-http-evidence-plan.md).
 
 **Decision improved:** Could a canonical, redirect, or response-status issue explain unexpected search data for this URL?
 

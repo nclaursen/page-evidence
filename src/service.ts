@@ -13,6 +13,9 @@ import {MAX_EXTERNAL_BYTES,parseAhrefsCsv} from './ahrefs-csv.js';
 import {externalDatasetSchema,externalDatasetSummary} from './external-search.js';
 import {analyzeSearchOpportunities,assessmentSchema,discoverSearchPages,searchActions,sitePageKey,type SearchAssessment,type SearchOptions,type SearchPageContext,type SearchSnapshot} from './search-opportunities.js';
 import {queryPageDrift,type DriftOptions} from './query-page-drift.js';
+import {inspectPageHttp} from './page-http.js';
+
+export async function pageHttpEvidence(url:string){return inspectPageHttp(url,config())}
 
 function withReadiness(snapshot:any,c:any){
   const gscTruncated=Boolean(snapshot.coverage?.gscTruncated);
