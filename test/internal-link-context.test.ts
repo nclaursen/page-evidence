@@ -29,3 +29,38 @@ it('reports unavailable repository evidence and rejects foreign targets',async()
   const result=await internalLinkContext('https://example.test/target',['enterprise']);expect(result.repository.configured).toBe(false);expect(result.coverage.filesInspected).toBe(0);
   await expect(internalLinkContext('https://other.test/target')).rejects.toThrow('configured site');
 });
+
+it.each([
+  '![Image][target]\n[target]: /target',
+  '<a data-href="/target">No destination</a>',
+  '<!-- <a href="/target">Old link</a> -->',
+  '```md\n[Example](/target)\n```',
+  '~~~md\n[Example](/target)\n~~~',
+  '`[Example](/target)`',
+  '```md\n[Example](/target)',
+  '```md\n[target]: /target\n```\n[Answer][target]',
+])('does not treat non-link source as an existing target link: %s',text=>{
+  setup();expect(sourceLinkEvidence(text,'https://example.test/target',config()).count).toBe(0);
+});
+
+it.each([
+  '[Answer](/target_(guide))',
+  '[Answer](/target_(guide) "Guide")',
+  '[Answer](</target_(guide)>)',
+  '[Answer](/target_\\(guide\\))',
+])('recognises Markdown destinations with parentheses: %s',text=>{
+  setup();expect(sourceLinkEvidence(text,'https://example.test/target_(guide)',config())).toMatchObject({count:1,links:[{anchor:'Answer'}]});
+});
+
+it('preserves line numbers after ignored examples and recognises nested destinations',()=>{
+  setup();const text='```md\n[Example](/target_(nested_(guide)))\n```\n<!-- old -->\n[Answer](/target_(nested_(guide)))';
+  expect(sourceLinkEvidence(text,'https://example.test/target_(nested_(guide))',config())).toMatchObject({count:1,links:[{line:5,anchor:'Answer'}]});
+});
+
+it('keeps relevant source as a candidate when its only target reference is a code example',async()=>{
+  setup();dir=fs.mkdtempSync(path.join(os.tmpdir(),'page-evidence-links-'));vi.stubEnv('PAGE_EVIDENCE_REPOSITORY_PATH',dir);
+  fs.writeFileSync(path.join(dir,'candidate.md'),'Enterprise content.\n```md\n[Example](/target)\n```');
+  const result=await internalLinkContext('https://example.test/target',['enterprise']);
+  expect(result.coverage).toMatchObject({candidateCount:1,existingLinkFiles:0});
+  expect(result.verifiedOpportunities).toHaveLength(1);
+});

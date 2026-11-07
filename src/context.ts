@@ -18,20 +18,52 @@ export async function repositoryContext(url:string){const c=config(),key=normali
 
 export async function pageSourceContext(url:string,terms:string[]=[]){const c=config(),key=normalize(url,c);if(!c.repositoryPath)return{configured:false,reason:'PAGE_EVIDENCE_REPOSITORY_PATH is not configured.'};if(!fs.existsSync(c.repositoryPath))return{configured:false,reason:'Configured repository path does not exist.'};const sources=mappedFiles(url,c).map(({file,text,mapping})=>({file,mapping,...contentEvidence(text,terms)}));return{configured:true,targetPath:key,terms:searchableTerms(terms),sources,limitation:'Source context is bounded excerpts and headings from explicitly configured local files. It shows matching text, not whether the page answers the question well.'}}
 
+function linkSource(text:string){
+  const blank=(value:string)=>value.replace(/[^\r\n]/g,' ');
+  let fence:{marker:string;length:number}|undefined;
+  return text.replace(/<!--[\s\S]*?(?:-->|$)/g,blank).split(/(?<=\n)/).map(line=>{
+    const marker=/^ {0,3}(`{3,}|~{3,})(.*)/.exec(line);
+    if(fence){if(marker&&marker[1][0]===fence.marker&&marker[1].length>=fence.length&&!marker[2].trim())fence=undefined;return blank(line)}
+    if(marker){fence={marker:marker[1][0],length:marker[1].length};return blank(line)}
+    return line;
+  }).join('').replace(/(`+)([^`]|(?!\1)`)*?\1/g,blank);
+}
+
+function inlineDestination(text:string,start:number){
+  if(text[start]==='<'){
+    const end=text.indexOf('>',start+1);if(end<0)return null;
+    const suffix=/^\s*(?:["'][^\n]*?["']\s*)?\)/.exec(text.slice(end+1));
+    return suffix?{href:text.slice(start+1,end),end:end+1+suffix[0].length}:null;
+  }
+  let depth=0,index=start;
+  for(;index<text.length;index++){
+    const char=text[index];
+    if(char==='\\'){index++;continue}
+    if(char==='(')depth++;
+    else if(char===')'){if(depth===0)break;depth--}
+    else if(/\s/.test(char))break;
+  }
+  if(depth!==0||index===start)return null;
+  const suffix=/^\s*(?:["'][^\n]*?["']\s*)?\)/.exec(text.slice(index));
+  return suffix?{href:text.slice(start,index).replace(/\\([\\()])/g,'$1'),end:index+suffix[0].length}:null;
+}
+
 export function sourceLinkEvidence(text:string,target:string,c:Config){
   const targetKey=pageKey(target,c),links:{href:string;anchor:string;line:number;excerpt:string}[]=[];
   // Source is not a rendered DOM: dynamic expressions and custom components remain unknown.
-  const definitions=new Map([...text.matchAll(/^ {0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?/gm)].map(match=>[match[1].trim().toLowerCase(),match[2]]));
-  const pattern=/(?<!!)\[([^\]\n]+)\]\(\s*<?([^\s)>]+)>?(?:\s+[^)]*)?\)|\[([^\]\n]+)\]\[([^\]\n]*)\]|<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\5[^>]*>([\s\S]*?)<\/a>/gi;
-  for(const match of text.matchAll(pattern)){
-    const href=match[2]||definitions.get((match[4]||match[3]||'').trim().toLowerCase())||match[6];
+  const visible=linkSource(text);
+  const definitions=new Map([...visible.matchAll(/^ {0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?/gm)].map(match=>[match[1].trim().toLowerCase(),match[2]]));
+  const pattern=/(?<!!)\[([^\]\n]+)\]\(\s*|(?<!!)\[([^\]\n]+)\]\[([^\]\n]*)\]|<a\b[^>]*?\shref\s*=\s*(["'])(.*?)\4[^>]*>([\s\S]*?)<\/a>/gi;
+  for(const match of visible.matchAll(pattern)){
+    const destination=match[1]?inlineDestination(visible,(match.index??0)+match[0].length):null;
+    const href=destination?.href||(!match[1]&&(definitions.get((match[3]||match[2]||'').trim().toLowerCase())||match[5]));
     if(!href)continue;
     // A relative link cannot be resolved safely without the source page's published URL.
     if(!/^(https?:\/\/|\/)/i.test(href))continue;
     let key:string|null=null;try{key=pageKey(new URL(href,target).href,c)}catch{continue}
     if(!targetKey||key!==targetKey)continue;
     const index=match.index??0;
-    links.push({href,anchor:(match[1]||match[3]||match[7]||'').replace(/<[^>]*>/g,'').slice(0,200),line:text.slice(0,index).split('\n').length,excerpt:text.slice(Math.max(0,index-120),index+match[0].length+120).replace(/\s+/g,' ').slice(0,500)});
+    links.push({href,anchor:(match[1]||match[2]||match[6]||'').replace(/<[^>]*>/g,'').slice(0,200),line:text.slice(0,index).split('\n').length,excerpt:text.slice(Math.max(0,index-120),(destination?.end??index+match[0].length)+120).replace(/\s+/g,' ').slice(0,500)});
   }
   return{links:links.slice(0,5),count:links.length,truncated:links.length>5};
 }
