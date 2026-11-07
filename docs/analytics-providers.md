@@ -109,3 +109,8 @@ Use a dedicated API user on a consented test instance. Before treating the adapt
 7. Confirm no visitor-profile, heatmap, scroll-map, write, or report-generation endpoints appear in request logs.
 
 The connector calls Umbraco directly; it does not shell out to the Umbraco CLI. Candidate selection remains GSC-led, and Engage evidence is page-level context rather than query attribution or acquisition-source evidence.
+
+
+### Measurement readiness states (7 November 2026)
+
+`get_measurement_readiness` fetches two analytics periods and configured outcomes independently of GSC and reports isolated failures. Per-period metric summaries preserve numeric zero, missing rows and partial coverage. GA4 and Matomo availability now reflects returned numeric values; missing configured GA4 outcome counts are nullable rather than implicit zero. Existing lens booleans remain observation flags; inspect additive `lensEvidence` for missing, unsupported, failed and not-observed states. Source classification stays in the adapter: GA4 session source/medium supports landing-page acquisition observations; Matomo's site-level referrer types cannot establish Google organic or AI referral sources; Engage and none have no acquisition source lens. No live instance compatibility is established by mocked tests. See the [plan](2026-11-07-readiness-inventory-plan.md).

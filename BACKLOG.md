@@ -1,6 +1,6 @@
 # Page Evidence backlog
 
-Updated: 2026-11-07, after selected-page HTTP evidence and search opportunity improvements.
+Updated: 2026-11-07, after provider readiness and bounded repository inventory.
 
 This is the single product decision backlog. It answers: **what page should I investigate next, why, and what can the data not prove?** An item belongs here only if it improves that decision, makes a deliberate change reviewable, or prevents a measurement mistake. Page Evidence stays local-first and makes no changes to websites or external services.
 
@@ -17,7 +17,7 @@ Do not add an MCP feature unless it returns data or durable local state a client
 | Capability | Current scope and limitations |
 | --- | --- |
 | External search evidence and opportunities | Local Ahrefs Organic Keywords imports and review-gated candidates; no model API or automatic editorial decision. See [search opportunities](docs/search-opportunities.md). |
-| Analytics adapters | GA4, Matomo, Engage and GSC-only mode. Provider availability/readiness inconsistencies remain an open item below. |
+| Analytics adapters | GA4, Matomo, Engage and GSC-only mode. Provider-aware measurement readiness is implemented; live provider verification remains open. |
 | Freshness, refresh and change digest | Fetch times, cache expiry, explicit refresh and local digest checkpoints; missing history is not backfilled. |
 | Comparison windows and page evidence | 7/30/60/90-day evidence where supported, query movement and page segments; lifecycle retains its 30/60/90-day view. |
 | Question discovery and source context | `find_question_opportunities`, page/question investigation, optional repository mapping and internal-link context. Question-like Google queries are not evidence of LLM demand. |
@@ -42,8 +42,8 @@ Do not add an MCP feature unless it returns data or durable local state a client
 | Order | Candidate | Decision and completion evidence |
 | --- | --- | --- |
 | Completed in checkout | Canonical, redirect and HTTP-status evidence | Bounded observed chain, static HTML canonicals and retrieval time for one selected URL. See [plan](docs/2026-11-07-http-evidence-plan.md); live rollout remains unverified. |
-| 2 | Provider availability and measurement readiness | Distinguish unsupported, missing, observed zero and failed evidence across GA4/Matomo/Engage/none. Remove GA4-specific acquisition assumptions from shared readiness; adapters supply source semantics. Validate the same readiness cases across providers. |
-| 3 | Bounded URL inventory | Show known URLs, source mappings and gaps from an explicit repository/sitemap source. Detailed scope below. |
+| Completed in checkout | Provider availability and measurement readiness | Explicit period, metric, acquisition and outcome states; provider source semantics, zero/null preservation and isolated failures. See [plan](docs/2026-11-07-readiness-inventory-plan.md). Live rollout remains unverified. |
+| Completed in checkout | Bounded repository URL inventory | Explicit repository URL declarations/references, mapping candidates and gaps, with scan/output limits. Sitemap retrieval and dynamic route inference remain unsupported. See [plan](docs/2026-11-07-readiness-inventory-plan.md). |
 | Completed in checkout | Emerging-query evidence in the digest | Opt-in enrichment of three returned flagged pages, five examples per group, adjacent-period coverage and per-page failure states. See the 2026-11-07 roadmap and plan below; live rollout is not verified. |
 
 ## Search and analytics opportunity roadmap — 2026-11-07
@@ -118,7 +118,7 @@ Group related queries by intent with inspectable examples only when it helps a r
 
 Return a small, explicit inventory of pages from a configured sitemap or repository, including mapping confidence and gaps. This would support answering “what is covered?” without expanding into a crawler or a hosted dashboard.
 
-**Done when:** a client can list mapped URLs, unmapped URLs, and missing evidence with a declared inventory source and no guessed matches.
+**Status:** implemented for configured repository evidence on 2026-11-07. Static frontmatter declarations are labelled as declarations; references and filename candidates are not verified routes. Scan/output limits and gaps are explicit. Sitemap fetching and complete framework route inference remain unsupported. See [plan](docs/2026-11-07-readiness-inventory-plan.md).
 
 ### Canonical and redirect evidence
 

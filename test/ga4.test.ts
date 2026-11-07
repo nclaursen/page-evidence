@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {config} from '../src/core.js';
-import {Ga4Provider} from '../src/analytics.js';
+import {Ga4Provider,configuredOutcomeEvents} from '../src/analytics.js';
 
 const mocks=vi.hoisted(()=>({runReport:vi.fn(),analyticsdata:vi.fn()}));
 vi.mock('googleapis',()=>({google:{analyticsdata:mocks.analyticsdata}}));
@@ -21,6 +21,7 @@ describe('GA4 landing evidence mapping',()=>{
     expect(mocks.runReport).toHaveBeenCalledWith({property:'properties/123',requestBody:{dateRanges:[{startDate:period.start,endDate:period.end}],dimensions:[{name:'landingPagePlusQueryString'},{name:'sessionSourceMedium'}],metrics:[{name:'sessions'},{name:'engagedSessions'},{name:'engagementRate'}],limit:'2'}});
     expect(evidence.rows).toEqual([{url:'/Guide?utm_source=chatgpt.com',acquisition:{type:'GA4 session source / medium',value:'chatgpt.com / referral'},metrics:{sessions:0,engagedSessions:null,engagementRate:0}}]);
     expect(evidence).toMatchObject({provider:'ga4',period,sourceSummaries:[],coverage:{complete:true,fetchedRows:1}});
+    expect(evidence.metricAvailability).toMatchObject({sessions:{available:true},engagedSessions:{available:false},engagementRate:{available:true}});
     expect(evidence.metricLabels.sessions).toBe('GA4 sessions');
   });
   it('marks a capped response incomplete and keeps provider failures visible',async()=>{
@@ -29,4 +30,10 @@ describe('GA4 landing evidence mapping',()=>{
     mocks.runReport.mockRejectedValueOnce(Error('Synthetic permission failure'));
     await expect(new Ga4Provider(config()).landingEvidence(period)).rejects.toThrow('permission failure');
   });
+});
+
+it('preserves missing configured outcome counts instead of inventing zero',async()=>{
+  vi.stubEnv('GA4_OUTCOME_EVENT_NAMES','lead');
+  mocks.runReport.mockResolvedValue({data:{rows:[{dimensionValues:[{value:'lead'}],metricValues:[{}]},{dimensionValues:[{value:'lead_zero'}],metricValues:[{value:'0'}]}]}});
+  expect((await configuredOutcomeEvents(config(),period)).events).toEqual([{name:'lead',count:null},{name:'lead_zero',count:0}]);
 });

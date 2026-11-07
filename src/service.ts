@@ -1,3 +1,5 @@
+import {acquisitionEvidence} from './analytics.js';
+import {metricEvidence,unavailableLenses} from './measurement.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {analyticsProvider,configuredOutcomeEvents} from './analytics.js';
@@ -230,7 +232,22 @@ export function actionReviewContext(actionId:string,requestedWindowDays?:number)
   return{profile:c.profile,analyticsProvider:c.analyticsProvider,action,reviewDue,windowDays,coverage:{excludedIncompatibleSnapshots},evidence:{baseline,after,overlapping},overlappingChanges,...assessment,gaps,limitation:'Before/after observations are retrieval evidence only. They do not establish that the recorded action caused a measured change. Only stored snapshots and same-page recorded changes are considered; missing history is not backfilled.'};
   }finally{store.db.close()}
 }
-export async function measurementReadiness(){const r:any=await sync(),c=config(),rows=[...r.analytics.current.rows,...r.analytics.previous.rows],sources=rows.map((x:any)=>x.acquisition?.value||''),outcomes=await configuredOutcomeEvents(c,r.range.current);return{profile:r.profile,provider:r.analyticsProvider,lenses:{googleOrganic:sources.some((x:string)=>x.toLowerCase().includes('google / organic')),allOrganic:sources.some((x:string)=>x.toLowerCase().includes('/ organic')),identifiableAiReferrals:sources.filter((x:string)=>/(chatgpt|perplexity|claude|gemini)/i.test(x))},configuredOutcomes:outcomes,gaps:outcomes.available?[]:[outcomes.reason],limitations:['Source labels and outcome events remain provider-scoped and are not query-attributed.',...(c.analyticsProvider==='engage'?['Engage page analytics does not provide acquisition-source evidence in this integration.']:[])]}}
+export async function measurementReadiness(){
+  const c=config(),range=periods(c.lag,30),provider=Promise.resolve().then(()=>analyticsProvider(c));
+  const fetchPeriod=async(period:typeof range.current)=>{
+    try{const evidence=await (await provider).landingEvidence(period);return{state:c.analyticsProvider==='none'?'unsupported':'available',period,provider:evidence.provider,fetchedAt:evidence.fetchedAt,coverage:evidence.coverage,source:evidence.source,sourceSummaries:evidence.sourceSummaries.slice(0,20),sourceSummariesTruncated:evidence.sourceSummaries.length>20,metrics:metricEvidence(evidence),lenses:acquisitionEvidence(evidence)}}
+    catch{return{state:'failed',period,reason:'Analytics evidence could not be retrieved; check provider configuration and read access.',lenses:unavailableLenses('failed','Analytics retrieval failed.')}}
+  };
+  const [current,previous,outcomes]=await Promise.all([fetchPeriod(range.current),fetchPeriod(range.previous),configuredOutcomeEvents(c,range.current).catch(()=>({available:false,state:'failed',reason:'Configured outcomes could not be retrieved; check provider read access.',events:[]}))]);
+  const periodsEvidence={current,previous};
+  const lensEvidence={current:current.lenses,previous:previous.lenses};
+  const observed=(name:'googleOrganic'|'allOrganic')=>[current,previous].some(period=>period.lenses[name].state==='observed');
+  return{profile:c.profile,site:{domain:c.domain,gscProperty:c.gscProperty},provider:c.analyticsProvider,checkedAt:new Date().toISOString(),periods:range,
+    lenses:{googleOrganic:observed('googleOrganic'),allOrganic:observed('allOrganic'),identifiableAiReferrals:[...new Set([current,previous].flatMap(period=>period.lenses.identifiableAiReferrals.values))].slice(0,20)},
+    lensEvidence,analyticsEvidence:periodsEvidence,configuredOutcomes:{...outcomes,state:'state'in outcomes?outcomes.state:outcomes.available?'available':c.analyticsProvider==='ga4'?'missing':'unsupported'},
+    gaps:[...[current,previous].flatMap((period,index)=>period.state==='failed'?[`${index?'Previous':'Current'} analytics evidence failed.`]:[]),...(!outcomes.available?[outcomes.reason]:[])],
+    limitations:['Legacy lens booleans indicate observations only; consult lensEvidence for unsupported and failed states.','Missing rows and not_observed labels do not mean zero traffic. Source labels and outcome events remain provider-scoped and are not query-attributed.','Readiness fetches analytics independently of GSC. Periods and coverage are retained per source.']};
+}
 export async function pageRepositoryContext(url:string){return repositoryContext(url)}
 export async function pageInternalLinkContext(url:string){const x:any=await pageContext(url,undefined,10);return internalLinkContext(url,safeQueryTerms(x.queryEvidence.current.map((q:any)=>q.query)))}
 
@@ -258,3 +275,5 @@ export async function status(){
   const optionalCapabilities={repository:{configured:Boolean(c.repositoryPath),reason:c.repositoryPath?'Local repository path is configured.':'PAGE_EVIDENCE_REPOSITORY_PATH is not configured.'},sitemap:{configured:Boolean(c.sitemapUrl),reason:c.sitemapUrl?'Sitemap URL is configured.':'PAGE_EVIDENCE_SITEMAP_URL is not configured.'},outcomeEvents:{configured:c.outcomeEvents.length>0,reason:c.outcomeEvents.length?`${c.outcomeEvents.length} outcome event name(s) configured.`:c.analyticsProvider==='ga4'?'GA4_OUTCOME_EVENT_NAMES is not configured.':'Configured outcome events are currently supported for GA4 only.'},analytics:{configured:c.analyticsProvider!=='none'&&!providerMissing.length,reason:providerMissing.length?`Missing ${providerMissing.join(', ')}.`:providerHealth.reason,status:providerHealth.state,authenticated:providerHealth.authenticated,version:'version'in providerHealth?providerHealth.version:undefined}};
   return{profile:c.profile,analyticsProvider:c.analyticsProvider,configured:!missing.length,missingSetup:missing,providerStatus:providerHealth,optionalCapabilities,dataDir:c.dataDir,reportingLagDays:c.lag,capabilities:['read-only GSC page data',...capabilities,'local reports and snapshots','stdio MCP']};
 }
+
+export {urlInventory} from './url-inventory.js';

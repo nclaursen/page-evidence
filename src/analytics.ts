@@ -1,6 +1,7 @@
 import {google} from 'googleapis';
 import {config,AnalyticsEvidence,AnalyticsMetricValue,AnalyticsProviderName,AnalyticsRow,Config,normalize,pageKey,Period} from './core.js';
 import {oauth} from './google.js';
+import {unavailableLenses,type LensEvidence} from './measurement.js';
 
 export type ProviderHealthState='available'|'unavailable'|'authentication_failed'|'missing_permissions'|'incompatible';
 export type ProviderHealth={state:ProviderHealthState;authenticated:boolean;version?:string;reason:string};
@@ -24,7 +25,7 @@ const percent=(value:unknown,metric:string):AnalyticsMetricValue=>{
   }
   return number(value,metric);
 };
-const available=(labels:Record<string,string>)=>Object.fromEntries(Object.keys(labels).map(metric=>[metric,{available:true}]));
+const available=(labels:Record<string,string>,rows:AnalyticsRow[])=>Object.fromEntries(Object.keys(labels).map(metric=>[metric,rows.some(row=>typeof row.metrics[metric]==='number')?{available:true}:{available:false,reason:'No numeric values returned for this metric.'}]));
 
 const ga4Labels={sessions:'GA4 sessions',engagedSessions:'GA4 engaged sessions',engagementRate:'GA4 engagement rate'};
 export class Ga4Provider implements AnalyticsProvider{
@@ -35,7 +36,7 @@ export class Ga4Provider implements AnalyticsProvider{
     const api=google.analyticsdata({version:'v1beta',auth:oauth(this.c).client});
     const r=await api.properties.runReport({property:`properties/${this.c.ga4PropertyId}`,requestBody:{dateRanges:[{startDate:period.start,endDate:period.end}],dimensions:[{name:'landingPagePlusQueryString'},{name:'sessionSourceMedium'}],metrics:[{name:'sessions'},{name:'engagedSessions'},{name:'engagementRate'}],limit:String(this.c.analyticsCap)}});
     const rows=(r.data.rows||[]).map(x=>({url:x.dimensionValues?.[0]?.value||'',acquisition:{type:'GA4 session source / medium',value:x.dimensionValues?.[1]?.value||'(not set)'},metrics:{sessions:number(x.metricValues?.[0]?.value),engagedSessions:number(x.metricValues?.[1]?.value),engagementRate:number(x.metricValues?.[2]?.value)}}));
-    return{provider:this.name,metricLabels:ga4Labels,metricAvailability:available(ga4Labels),rows,sourceSummaries:[],fetchedAt:new Date().toISOString(),period,coverage:{complete:rows.length<this.c.analyticsCap,limitations:rows.length>=this.c.analyticsCap?[`GA4 response reached the configured ${this.c.analyticsCap}-row cap.`]:[],fetchedRows:rows.length}};
+    return{provider:this.name,metricLabels:ga4Labels,metricAvailability:available(ga4Labels,rows),rows,sourceSummaries:[],fetchedAt:new Date().toISOString(),period,coverage:{complete:rows.length<this.c.analyticsCap,limitations:rows.length>=this.c.analyticsCap?[`GA4 response reached the configured ${this.c.analyticsCap}-row cap.`]:[],fetchedRows:rows.length}};
   }
 }
 
@@ -48,11 +49,12 @@ export class MatomoProvider implements AnalyticsProvider{
   capabilities(){return['page URL report','site-level referrer context','Matomo visits and pageviews']}
   async landingEvidence(period:Period){
     const [pageResponse,referrerResponse]=await Promise.all([matomoRequest(this.c,'Actions.getPageUrls',period,{flat:'1'}),matomoRequest(this.c,'Referrers.getReferrerType',period)]);
-    const pageRows=Array.isArray(pageResponse)?pageResponse:[],referrerRows=Array.isArray(referrerResponse)?referrerResponse:[];
+    if(!Array.isArray(pageResponse)||!Array.isArray(referrerResponse))throw Error('Matomo returned an invalid report shape.');
+    const pageRows=pageResponse,referrerRows=referrerResponse;
     const rows=pageRows.map(row=>{const r=row as Record<string,unknown>;return{url:String(r.label||''),acquisition:null,metrics:{visits:number(r.nb_visits),pageviews:number(r.nb_hits),uniquePageviews:number(r.nb_uniq_pageviews),entries:number(r.entry_nb_visits),bounceRate:percent(r.bounce_rate,'Matomo bounce_rate')}}}).filter(row=>row.url);
     const sourceSummaries=referrerRows.map(row=>{const r=row as Record<string,unknown>;return{type:'Matomo referrer type',value:String(r.label||'(not set)'),metrics:{visits:number(r.nb_visits),actions:number(r.nb_actions),conversions:number(r.nb_conversions)}}});
     const capped=pageRows.length>=this.c.analyticsCap;
-    return{provider:this.name,metricLabels:matomoLabels,metricAvailability:available(matomoLabels),rows,sourceSummaries,fetchedAt:new Date().toISOString(),period,coverage:{complete:!capped,limitations:[...(capped?[`Matomo page URL response reached the configured ${this.c.analyticsCap}-row cap.`]:[]),'Matomo referrer context is site-level in this evidence; it is not attributed to individual page rows.'],fetchedRows:rows.length}};
+    return{provider:this.name,metricLabels:matomoLabels,metricAvailability:available(matomoLabels,rows),rows,sourceSummaries,fetchedAt:new Date().toISOString(),period,coverage:{complete:!capped,limitations:[...(capped?[`Matomo page URL response reached the configured ${this.c.analyticsCap}-row cap.`]:[]),'Matomo referrer context is site-level in this evidence; it is not attributed to individual page rows.'],fetchedRows:rows.length}};
   }
 }
 
@@ -194,11 +196,21 @@ export class EngageProvider implements AnalyticsProvider{
 
 export class NoneProvider implements AnalyticsProvider{name='none' as const;capabilities(){return[]}async landingEvidence(period:Period){return{provider:this.name,metricLabels:{},metricAvailability:{},rows:[],sourceSummaries:[],fetchedAt:new Date().toISOString(),period,coverage:{complete:true,limitations:['No analytics provider is configured. GSC-only evidence is available.'],fetchedRows:0}}}}
 
-export async function configuredOutcomeEvents(c:Config,period:Period){if(c.analyticsProvider!=='ga4')return{available:false,reason:'Configured outcome events are currently supported for GA4 only.',events:[]};if(!c.outcomeEvents.length)return{available:false,reason:'GA4_OUTCOME_EVENT_NAMES is not configured.',events:[]};const api=google.analyticsdata({version:'v1beta',auth:oauth(c).client}),r=await api.properties.runReport({property:`properties/${c.ga4PropertyId}`,requestBody:{dateRanges:[{startDate:period.start,endDate:period.end}],dimensions:[{name:'eventName'}],metrics:[{name:'eventCount'}],dimensionFilter:{filter:{fieldName:'eventName',inListFilter:{values:c.outcomeEvents}}}}});return{available:true,events:(r.data.rows||[]).map(x=>({name:x.dimensionValues?.[0]?.value||'',count:Number(x.metricValues?.[0]?.value||0)})),limitation:'Event counts are property-level for the selected period; they are not attributed to GSC queries.'}}
+export async function configuredOutcomeEvents(c:Config,period:Period){if(c.analyticsProvider!=='ga4')return{available:false,reason:'Configured outcome events are currently supported for GA4 only.',events:[]};if(!c.outcomeEvents.length)return{available:false,reason:'GA4_OUTCOME_EVENT_NAMES is not configured.',events:[]};const api=google.analyticsdata({version:'v1beta',auth:oauth(c).client}),r=await api.properties.runReport({property:`properties/${c.ga4PropertyId}`,requestBody:{dateRanges:[{startDate:period.start,endDate:period.end}],dimensions:[{name:'eventName'}],metrics:[{name:'eventCount'}],dimensionFilter:{filter:{fieldName:'eventName',inListFilter:{values:c.outcomeEvents}}}}});return{available:true,events:(r.data.rows||[]).map(x=>({name:x.dimensionValues?.[0]?.value||'',count:number(x.metricValues?.[0]?.value)})),limitation:'Event counts are property-level for the selected period; they are not attributed to GSC queries.'}}
 
 export function analyticsProvider(c=config()):AnalyticsProvider{
   if(c.analyticsProvider==='ga4'){if(!c.ga4PropertyId)throw Error('GA4_PROPERTY_ID is required when ANALYTICS_PROVIDER=ga4.');return new Ga4Provider(c)}
   if(c.analyticsProvider==='matomo'){if(!c.matomoUrl||!c.matomoSiteId||!c.matomoTokenAuth)throw Error('MATOMO_URL, MATOMO_SITE_ID, and MATOMO_TOKEN_AUTH are required when ANALYTICS_PROVIDER=matomo.');return new MatomoProvider(c)}
   if(c.analyticsProvider==='engage'){if(!c.umbracoBaseUrl||!c.umbracoClientId||!c.umbracoClientSecret)throw Error('UMBRACO_BASE_URL, UMBRACO_CLIENT_ID, and UMBRACO_CLIENT_SECRET are required when ANALYTICS_PROVIDER=engage.');return new EngageProvider(c)}
   return new NoneProvider();
+}
+
+/** Provider-specific source semantics. Absence in bounded rows is not absence of traffic. */
+export function acquisitionEvidence(e:AnalyticsEvidence){
+  if(e.provider==='ga4'){
+    const labels=[...new Set(e.rows.filter(row=>row.acquisition?.type==='GA4 session source / medium').map(row=>row.acquisition!.value))];
+    const lens=(match:(value:string)=>boolean):LensEvidence=>{const values=labels.filter(match);return{state:values.length?'observed':e.rows.length&&!labels.length?'missing':'not_observed',scope:'landing_page',values:values.slice(0,20),reason:'GA4 session source / medium in returned landing-page rows; bounded evidence, not a complete traffic partition.'}};
+    return{googleOrganic:lens(value=>/^google \/ organic$/i.test(value)),allOrganic:lens(value=>/ \/ organic$/i.test(value)),identifiableAiReferrals:lens(value=>/(?:^|[.\s/])(chatgpt|perplexity|claude|gemini)(?:[.\s/]|$)/i.test(value))};
+  }
+  return unavailableLenses('unsupported',e.provider==='matomo'?'Matomo referrer types are site-level categories; they do not identify Google organic, all organic, or AI referral sources.':e.provider==='engage'?'Engage page analytics does not provide acquisition-source evidence.':'No analytics provider is selected.');
 }
