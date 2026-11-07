@@ -210,6 +210,10 @@ The report returns fewer opportunities when data is sparse. Current gates requir
 
 The actively maintained, decision-gated backlog lives in [BACKLOG.md](BACKLOG.md). It is intentionally not a feature roadmap: an item is built only when it improves a specific content decision while preserving Page Evidence's local-first, read-only posture.
 
+## Development guidance
+
+Page Evidence evolves as one reusable product across the Umbraco, personal, and future instances. Read [AGENTS.md](AGENTS.md) (also imported by [CLAUDE.md](CLAUDE.md)), the [verified architecture and feature placement process](docs/architecture.md), and the [architecture improvement backlog](docs/architecture-backlog.md). Shared functionality belongs in core, provider behavior in adapters, and instance differences in configuration or explicit extensions. Backlog proposals do not authorize code changes.
+
 ## Privacy and security
 
 Read [SECURITY.md](SECURITY.md). Never commit `.env`, `~/.site-signal`, report files, or OAuth tokens.

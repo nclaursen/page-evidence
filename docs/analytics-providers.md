@@ -1,6 +1,6 @@
 # Analytics-provider implementation notes
 
-This document records Page Evidence's first-class analytics-provider design without turning it into a multi-tenant or hosted service.
+This document records Page Evidence's implemented analytics-provider contract and setup without turning it into a multi-tenant or hosted service. See [architecture.md](architecture.md) for core/provider/instance responsibilities and [AGENTS.md](../AGENTS.md) for the shared development rules.
 
 ## Operating model
 
@@ -12,44 +12,24 @@ One Page Evidence process serves one named site profile:
 | `page-evidence-umbraco` | Matomo | `~/.site-signal/umbraco` |
 | `page-evidence-engage` | Umbraco Engage | `~/.site-signal/engage` |
 
-Both entries run the same published CLI/MCP package. Each has its own local environment file and data directory. A profile must never share a snapshot database with another profile: the current snapshot identifier is period-based, so shared state could otherwise mix sites.
+These are representative entries using the same CLI/MCP package, not audited deployment manifests. Each needs its own private environment file and data directory. A profile must never share a snapshot database/token directory with another profile. Current snapshot identifiers include profile, analytics provider, period and a versioned non-secret configuration fingerprint covering site/property and relevant settings. Payload identity is validated before cache reuse, history and action review; unverifiable legacy snapshots remain stored but are excluded. See [evidence identity and compatibility](evidence-identity.md). Action rows also rely on directory isolation; do not repurpose existing state for a different site/property.
 
-This is deliberately **not** one MCP server that switches site at tool-call time. A caller chooses the named MCP server before it asks for data. Every response also states its `profile`, `site`, and `analyticsProvider`.
+This is deliberately **not** one MCP server that switches site at tool-call time. A caller chooses the named MCP server before it asks for data. Snapshots and page-context responses include profile/provider identity, while site/connection scope is bound through snapshot identity. A universal MCP identity envelope is not implemented. Response consistency is an [architecture backlog item](architecture-backlog.md#recommended--material-architecture-improvements).
 
 ## Provider boundary
 
-Keep GSC in the shared search adapter. Replace the GA4-specific `ga()` call with an `AnalyticsProvider` selected at startup.
+GSC is implemented in `src/google.ts`. `src/analytics.ts` defines the implemented `AnalyticsProvider` interface and selects a concrete adapter from configuration. Its current interface is:
 
 ```ts
-type AnalyticsProviderName = 'ga4' | 'matomo' | 'engage' | 'none';
-
-type AnalyticsEvidence = {
-  provider: AnalyticsProviderName;
-  metricLabels: Record<string, string>;
-  metricAvailability: Record<string, boolean>;
-  rows: AnalyticsRow[];
-  coverage: {
-    complete: boolean;
-    limitations: string[];
-    totalRows?: number;
-    fetchedRows?: number;
-    pagesFetched?: number;
-    reportsExist?: boolean;
-  };
-};
-
-type AnalyticsRow = {
-  url: string;
-  acquisition: { type: string; value: string } | null;
-  metrics: Record<string, number | null>;
-};
-
 interface AnalyticsProvider {
   name: AnalyticsProviderName;
   capabilities(): string[];
   landingEvidence(period: Period): Promise<AnalyticsEvidence>;
+  health?(): Promise<ProviderHealth>;
 }
 ```
+
+The referenced types are defined in `src/core.ts` and `src/analytics.ts`. `AnalyticsEvidence` includes rows with nullable acquisition/metric values, site-level `sourceSummaries`, labels, coverage, and optional availability/fetch/period/source metadata. Availability is `Record<string, {available: boolean; reason?: string}>`, not a boolean map. Engage implements live health; GA4/Matomo status reports configuration and requires a separate live access check. Capability strings do not guarantee identical provider behavior.
 
 The internal format is intentionally narrow. It supports page context and reports without pretending that different products share identical semantics. Human-facing output must use each provider's original metric labels: for example, a Matomo `visit` must never be displayed as a GA4 `session`.
 
@@ -88,7 +68,7 @@ GSC configuration remains per profile. The Matomo and Umbraco base URLs must use
 
 Completed:
 
-1. Provider/profile configuration validation and `profile` plus `analyticsProvider` in snapshots, reports, page context, MCP status, and MCP tool responses.
+1. Provider selection/required-setting checks and `profile` plus `analyticsProvider` in snapshots, reports, page context, and MCP status. Comprehensive configuration validation and consistent identity on all tool responses remain gaps.
 2. Existing GA4 acquisition data extracted behind the provider interface.
 3. A `none` provider for explicit GSC-only operation.
 4. Matomo's read-only Reporting API adapter using `Actions.getPageUrls` and `Referrers.getReferrerType`.
@@ -107,12 +87,12 @@ Candidate selection remains GSC-led in this phase. Analytics data provides acqui
 Use a real, non-production-sensitive profile and a read-only token. Before treating any Matomo field as product contract, verify:
 
 1. The server URL, `idSite`, and token can call the Reporting API.
-2. A fixed 28-day range returns page URL rows from `Actions.getPageUrls`.
+2. A fixed supported comparison window (7/30/60/90 days) returns page URL rows from `Actions.getPageUrls`.
 3. Returned page URLs can be normalized against the site's GSC URLs without losing meaningful query parameters.
 4. Referrer/organic context is available at a usable scope. Record whether it can be returned per page, per segment, or only as a separate site-level report.
 5. Available goal/outcome data can be read without requesting write permissions. If not configured, return an explicit unavailable capability.
 6. Pagination, row limits, timezone, sampling/aggregation, and delayed-data behaviour are represented in `coverage.limitations`.
-7. The MCP response identifies `profile: umbraco` and `analyticsProvider: matomo` on every relevant tool response.
+7. Snapshot/page-context responses identify the configured profile and `analyticsProvider: matomo`; record any tool that omits identity metadata rather than claiming universal coverage.
 
 Do not add support for optional Matomo modules (including AI-referrer reporting) until their availability and permission requirements have been confirmed on the target instance.
 

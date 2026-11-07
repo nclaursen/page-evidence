@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {afterEach,expect,it,vi} from 'vitest';
 import {config} from '../src/core.js';
-import {internalLinkContext,sourceLinkEvidence} from '../src/context.js';
+import {internalLinkContext,repositoryContext,pageSourceContext,sourceLinkEvidence} from '../src/context.js';
 let dir:string|undefined;
 afterEach(()=>{vi.unstubAllEnvs();if(dir)fs.rmSync(dir,{recursive:true,force:true});dir=undefined});
 function setup(){vi.stubEnv('SITE_DOMAIN','example.test');vi.stubEnv('GSC_PROPERTY','sc-domain:example.test');vi.stubEnv('PAGE_EVIDENCE_SITEMAP_URL','');vi.stubEnv('SITE_SIGNAL_SITEMAP_URL','')}
@@ -63,4 +63,21 @@ it('keeps relevant source as a candidate when its only target reference is a cod
   const result=await internalLinkContext('https://example.test/target',['enterprise']);
   expect(result.coverage).toMatchObject({candidateCount:1,existingLinkFiles:0});
   expect(result.verifiedOpportunities).toHaveLength(1);
+});
+
+it('excludes dependency copies from mapping, excerpts and link candidates while retaining site source',async()=>{
+  setup();dir=fs.mkdtempSync(path.join(os.tmpdir(),'page-evidence-links-'));vi.stubEnv('PAGE_EVIDENCE_REPOSITORY_PATH',dir);
+  const source=path.join(dir,'src','candidate.md');fs.mkdirSync(path.dirname(source),{recursive:true});
+  fs.writeFileSync(source,'Enterprise source links to [answer](/target).');
+  for(const name of ['node_modules','node_modules 2','node_modules.nosync','node_modules-backup']){
+    const dependency=path.join(dir,name,'package');fs.mkdirSync(dependency,{recursive:true});
+    fs.writeFileSync(path.join(dependency,'README.md'),'Enterprise dependency [answer](/target).');
+  }
+  const repository=await repositoryContext('https://example.test/target');
+  expect(repository.sourceFiles).toEqual([{file:source,mapping:'direct_url_reference'}]);
+  const context=await pageSourceContext('https://example.test/target',['enterprise']);
+  expect(context.sources?.map(item=>item.file)).toEqual([source]);
+  const links=await internalLinkContext('https://example.test/target',['enterprise']);
+  expect(links.coverage).toMatchObject({filesInspected:1,existingLinkFiles:1,candidateCount:0});
+  expect(links.existingLinks.map(item=>item.file)).toEqual([source]);
 });
