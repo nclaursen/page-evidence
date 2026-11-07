@@ -43,7 +43,23 @@ Do not add an MCP feature unless it returns data or durable local state a client
 | 1 | Canonical, redirect and HTTP-status evidence | Explain a selected URL's unexpected search behavior using a bounded observed chain, canonical and retrieval time. Detailed scope below. |
 | 2 | Provider availability and measurement readiness | Distinguish unsupported, missing, observed zero and failed evidence across GA4/Matomo/Engage/none. Remove GA4-specific acquisition assumptions from shared readiness; adapters supply source semantics. Validate the same readiness cases across providers. |
 | 3 | Bounded URL inventory | Show known URLs, source mappings and gaps from an explicit repository/sitemap source. Detailed scope below. |
-| 4 | Emerging-query evidence in the digest | Enrich only selected flagged pages with bounded `get_query_entry_exit` evidence. Declare limits and distinguish newly observed rows from new demand; avoid automatic site-wide query retrieval. |
+| Completed in checkout | Emerging-query evidence in the digest | Opt-in enrichment of three returned flagged pages, five examples per group, adjacent-period coverage and per-page failure states. See the 2026-11-07 roadmap and plan below; live rollout is not verified. |
+
+## Search and analytics opportunity roadmap — 2026-11-07
+
+The first three items below are implemented in this checkout; verification is recorded in the linked plan. Remaining items are proposals only. All reusable rules belong in shared core; provider-specific evidence belongs in adapters. No live account checks, external changes, new dependencies or schema migrations are authorised by this scope.
+
+| Item | Decision supported | Scope / acceptance |
+| --- | --- | --- |
+| Emerging-query digest enrichment | Which flagged page attracts newly observed questions worth inspecting? | Opt-in enrichment of at most three returned flagged pages using cached per-page queries; bounded examples, periods, coverage and partial failures. Newly observed is not new demand. Extends the existing digest candidate above. |
+| Click-change breakdown | Should an investigation start with impressions, CTR or query mix? | Exact descriptive arithmetic separating impression and CTR components for comparable page totals; unavailable for zero/missing impression baselines. Include in page context and digest; do not infer causes. |
+| Better internal-link evidence | Which source passage could usefully link to a selected page? | Bounded surrounding excerpts and inspectable existing-link evidence from configured local source; retain existing response fields and disclose parsing limits. |
+| Queries near stronger visibility | Which existing page merits inspection before creating content? | Configurable query/page impression and position filters, with movement and intent review; no universal position target or promised gains. Prefer existing search-opportunity evidence before adding retrieval. |
+| Branded/non-branded performance | Does growth extend beyond existing brand awareness? | Configured brand/product variants, transparent matching and unclassified evidence; withheld queries and bounded rows prevent a complete partition of site totals. |
+| Landing-page engagement mismatches | Which search landing experiences deserve review? | Contrast GSC movement with provider-supported landing-page engagement, preserving source periods and metric semantics. Fast answers can have low engagement; fix availability/readiness gaps first. |
+| Landing-page business outcomes | Which opportunities matter to real outcomes? | Extend adapters only where supported, with landing/session scope, compatible dimensions, configured meaningful events and coverage. Current GA4 property-level counts are not landing-page or query attribution. This is separate from property-level outcome trend snapshots. |
+
+Implementation details and checks: [approved plan](docs/2026-11-07-search-opportunity-plan.md).
 
 ## Change-learning workflow — available; outcome follow-up pending
 

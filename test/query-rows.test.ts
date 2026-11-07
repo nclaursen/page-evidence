@@ -37,6 +37,7 @@ describe('query rows are ranked locally, not sampled by Google',()=>{
     const current=[row('alpha zero click',0,1),row('enterprise cms',0,800),row('beta zero click',0,2),row('with a click',2,150)];
     queryRows.mockResolvedValue({rows:current,truncated:false});
     const context:any=await pageContext('https://example.com/page',undefined,2,30);
+    expect(context.pagePerformance.clickBreakdown).toMatchObject({available:true,clickChange:0,impressionComponent:0,ctrComponent:0});
     expect(context.queryEvidence.current.map((x:any)=>x.query)).toEqual(['enterprise cms','with a click']);
     expect(context.queryEvidence.coverage.current.fetched).toMatchObject({fetchedRows:4,fetchCapReached:false});
     expect(queryRows).toHaveBeenCalledTimes(2);

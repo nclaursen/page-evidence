@@ -1,4 +1,11 @@
-import {pageKey,type Config} from './core.js';
+import {pageKey,type Page,type Config} from './core.js';
+
+/** Symmetric arithmetic allocation, not a causal model or expected-click forecast. */
+export function clickChangeBreakdown(current:Page|null|undefined,previous:Page|null|undefined){
+  if(!current||!previous||![current,previous].every(row=>Number.isFinite(row.clicks)&&Number.isFinite(row.impressions)&&row.impressions>0&&row.clicks>=0&&row.clicks<=row.impressions))return{available:false as const,reason:'Both periods require observed, valid clicks and positive impressions.'};
+  const currentCtr=current.clicks/current.impressions,previousCtr=previous.clicks/previous.impressions;
+  return{available:true as const,clickChange:current.clicks-previous.clicks,currentCtr,previousCtr,impressionComponent:(current.impressions-previous.impressions)*(currentCtr+previousCtr)/2,ctrComponent:(currentCtr-previousCtr)*(current.impressions+previous.impressions)/2,method:'symmetric_interaction_allocation',limitation:'Arithmetic components sum to the observed click change; they do not identify causes. Query mix, position, demand and search-result changes require separate inspection.'};
+}
 
 /** Compare rolling page totals, not individual days or causal effects. */
 export function digestChanges(current:any,previous:any,c:Config,limit:number){
@@ -20,7 +27,7 @@ export function digestChanges(current:any,previous:any,c:Config,limit:number){
     const impressionSignal=Math.abs(impressionChange)>=25&&impressionRelative>=0.2;
     if(!clickSignal&&!impressionSignal)continue;
     const primaryMetric=clickSignal?'clicks':'impressions';
-    const change={url:a.url,current:a,previous:b,clickChange,impressionChange,primaryMetric,mixedDirection:clickChange*impressionChange<0};
+    const change={url:a.url,current:a,previous:b,clickChange,impressionChange,primaryMetric,clickBreakdown:clickChangeBreakdown(a,b),mixedDirection:clickChange*impressionChange<0};
     ((clickSignal?clickChange:impressionChange)>0?gains:declines).push(change);
   }
   const rank=(a:any,b:any)=>Math.abs(b.clickChange)-Math.abs(a.clickChange)||Math.abs(b.impressionChange)-Math.abs(a.impressionChange)||a.url.localeCompare(b.url);

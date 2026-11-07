@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {config,evidenceIdentity,periods,snapshotId,Store} from '../src/core.js';
-import {digestChanges} from '../src/digest.js';
+import {clickChangeBreakdown,digestChanges} from '../src/digest.js';
 import {freshness,QUERY_TTL_MS,SNAPSHOT_TTL_MS} from '../src/freshness.js';
 
 const mocks=vi.hoisted(()=>({gsc:vi.fn(),queryRows:vi.fn(),landingEvidence:vi.fn()}));
@@ -161,4 +161,57 @@ it('supports seven complete days excluding the three most recent complete days',
   expect(result.readiness.state).toBe('ready');
   expect(cacheStatus(7).snapshot.present).toBe(true);
   expect((await refreshEvidence(7)).periods).toEqual(range);
+});
+
+it('splits click changes exactly without treating missing or zero baselines as evidence',()=>{
+  for(const [now,before] of [[page('a',15,100),page('a',10,100)],[page('a',20,200),page('a',10,100)],[page('a',12,300),page('a',20,200)],[page('a',0,100),page('a',0,200)]]){
+    const result=clickChangeBreakdown(now,before);
+    expect(result.available).toBe(true);
+    if(result.available)expect(result.impressionComponent+result.ctrComponent).toBeCloseTo(now.clicks-before.clicks,10);
+  }
+  expect(clickChangeBreakdown(null,page('a')).available).toBe(false);
+  expect(clickChangeBreakdown(page('a'),page('a',0,0)).available).toBe(false);
+  const ctrOnly=clickChangeBreakdown(page('a',15,100),page('a',10,100));
+  expect(ctrOnly).toMatchObject({impressionComponent:0});if(ctrOnly.available)expect(ctrOnly.ctrComponent).toBeCloseTo(5,10);
+});
+
+it('enriches only three flagged pages, bounds query groups and reuses page query caches',async()=>{
+  await changeDigest();save(Array.from({length:6},(_,i)=>page(`new-${i}`,10,300-i)));
+  const rows=Array.from({length:9},(_,i)=>({query:`emerging ${i}`,clicks:0,impressions:10+i,ctr:0,position:8}));
+  mocks.queryRows.mockImplementation(async(_c,period)=>({rows:period.start===periods(config().lag,30).current.start?rows:[],truncated:true}));
+  const without=await changeDigest(30,5,false,false);
+  expect(without.queryEnrichment).toEqual({requested:false});expect(mocks.queryRows).not.toHaveBeenCalled();
+  const result=await changeDigest(30,5,false,false,true);
+  expect(result.queryEnrichment).toMatchObject({requested:true,comparison:'snapshot_adjacent_periods',pageLimit:3});
+  if('pages' in result.queryEnrichment){
+    expect(result.queryEnrichment.pages).toHaveLength(3);
+    const first=result.queryEnrichment.pages[0];
+    expect(first).toMatchObject({status:'available',counts:{entered:9},coverage:{current:{fetchCapReached:true},previous:{fetchedRows:0}}});
+    if(first.status==='available'){expect(first.entered).toHaveLength(5);expect(first.entered[0].query).toBe('emerging 8')}
+  }
+  expect(mocks.queryRows).toHaveBeenCalledTimes(6);
+  await changeDigest(30,5,false,false,true);expect(mocks.queryRows).toHaveBeenCalledTimes(6);
+});
+
+it('keeps the digest and checkpoint usable after partial query failures',async()=>{
+  await changeDigest();save([page('a',30,300),page('b',10,200)]);
+  mocks.queryRows.mockImplementation(async(_c,_p,url)=>{if(url.endsWith('/a'))throw Error('private failure details');return{rows:[],truncated:false}});
+  const result=await changeDigest(30,5,false,true,true);
+  expect(result.gains).toHaveLength(1);expect(result.checkpointAdvanced).toBe(true);
+  expect(result.queryEnrichment).toMatchObject({pages:[{url:page('a').url,status:'unavailable'},{url:page('b').url,status:'available'}]});
+  expect(JSON.stringify(result)).not.toContain('private failure details');
+  expect((await changeDigest()).counts.gains).toBe(0);
+});
+
+it.each(['ga4','matomo','engage','none'])('keeps GSC enrichment and arithmetic independent of %s analytics',async provider=>{
+  vi.stubEnv('ANALYTICS_PROVIDER',provider);save();await changeDigest();save([page('a',20,300)]);
+  const result=await changeDigest(30,5,false,false,true);
+  expect(result.gains[0].clickBreakdown).toMatchObject({available:true,clickChange:10});
+  expect(result.queryEnrichment).toMatchObject({requested:true,source:'gsc',pages:[{status:'available'}]});
+  expect(mocks.landingEvidence).not.toHaveBeenCalled();
+});
+
+it('does not fetch enrichment before a digest baseline exists',async()=>{
+  const result=await changeDigest(30,5,false,false,true);
+  expect(result.status).toBe('baseline_needed');expect(result.queryEnrichment).toMatchObject({requested:true,pages:[]});expect(mocks.queryRows).not.toHaveBeenCalled();
 });

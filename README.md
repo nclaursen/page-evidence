@@ -139,7 +139,7 @@ The MCP tools are `get_site_status`, `get_change_digest`, `get_cache_status`, `r
 
 `get_change_digest` answers “what changed since my last check?” using page-level GSC evidence. The first call saves a local baseline and returns `status: baseline_needed`; subsequent calls compare against that check and advance it. Checkpoints are separate from snapshots, scoped by profile, property, provider, window and relevant settings, and survive server restarts. Use `advanceCheckpoint: false` to preview without advancing the baseline, and `refresh: true` to fetch fresh evidence first. `windowDays` accepts 7, 30, 60 or 90; `limit` defaults to 5 per group (maximum 20).
 
-The digest returns gains, declines, low-baseline/maturing pages, missing pages, current and previous measurement issues, counts, timestamps and the compared periods. A signal needs at least 100 impressions in either check, a mature baseline, and either a click change of at least 3 and 20%, or an impression change of at least 25 and 20%. Click movement takes priority when both qualify; conflicting directions are labelled. These are transparent triage thresholds, not statistical significance. A missing GSC row is not treated as zero traffic. Rolling windows may overlap; movements are not causal claims. This first version does not fetch or summarize emerging queries.
+The digest returns gains, declines, low-baseline/maturing pages, missing pages, current and previous measurement issues, counts, timestamps and the compared periods. A signal needs at least 100 impressions in either check, a mature baseline, and either a click change of at least 3 and 20%, or an impression change of at least 25 and 20%. Click movement takes priority when both qualify; conflicting directions are labelled. These are transparent triage thresholds, not statistical significance. A missing GSC row is not treated as zero traffic. Rolling windows may overlap; movements are not causal claims. Set `includeQueries: true` (CLI `--include-queries`) to enrich at most three returned flagged pages with the five highest-impression entered and exited query rows per group. This is off by default and reuses the one-hour page-query cache. Query evidence compares the current snapshot's adjacent periods, **not** the digest checkpoint periods; each page includes fetch times, cap flags and coverage. Failed page-query retrieval is labelled unavailable without discarding the digest or exposing provider error details. Newly observed rows are not evidence of new demand.
 
 `get_cache_status` shows snapshot fetch time, age, expiry and whether it is stale, plus this process’s profile-scoped query-cache counts. It does not call external providers. Snapshots are reused for up to 24 hours; query rows for up to one hour, bounded to 50 cache entries across profiles. Expired entries are refetched on demand. Query evidence includes its own freshness metadata separately from the page snapshot. An explicit historical snapshot remains historical rather than being automatically replaced.
 
@@ -149,7 +149,7 @@ CLI equivalents (using your usual private environment):
 
 ```sh
 page-evidence digest --days=30 --limit=5
-page-evidence digest --days=30 --refresh --preview
+page-evidence digest --days=30 --refresh --preview --include-queries
 page-evidence cache-status --days=30
 page-evidence refresh --days=30
 ```
@@ -229,3 +229,9 @@ Use [page-evidence-learning-loop](skills/page-evidence-learning-loop/SKILL.md) a
 ## Query-to-page drift
 
 `find_query_page_drift` compares observed landing pages for exact GSC queries, with optional exact-query selection, 7/30/60/90-day windows, bounded page evidence and explicit coverage. CLI: `page-evidence query-page-drift --query="enterprise cms" --days=30`. Discovery returns observed leader/page-set changes; ties and absent periods remain explicit. This is GSC-only evidence, not a cannibalization diagnosis. See [usage, metrics and limitations](docs/query-page-drift.md).
+
+### Descriptive click-change and internal-link evidence
+
+`get_page_context` includes `pagePerformance.clickBreakdown`; comparable digest gains/declines include `clickBreakdown`. Positive-impression periods receive symmetric arithmetic components: `(I_now - I_before) × (CTR_now + CTR_before) / 2` and `(CTR_now - CTR_before) × (I_now + I_before) / 2`. Their sum equals the observed click change within floating-point precision. CTR is recalculated from clicks/impressions. Missing, invalid or zero-impression periods return unavailable. These are descriptive components, not causal attribution, forecasts, or a diagnosis that the title needs changing. Inspect comparable queries, position, device/country and the displayed result separately.
+
+`get_internal_link_context` retains `verifiedOpportunities` and adds up to three surrounding excerpts per candidate, with source line numbers, plus `existingLinks` with anchors and passages. Each list is bounded to 20 source files, with counts/truncation metadata. It checks configured local Markdown/MDX/Astro/HTML source, not the rendered website. Absolute/root-relative Markdown inline/reference links and HTML anchors can be detected; relative links, dynamic components and shortcut references may be missed. Candidates mean no target link was detected by this limited parser, not proven absence of a rendered link. The client judges relevance and anchor wording. No website changes are made.
