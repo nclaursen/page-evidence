@@ -69,3 +69,23 @@ Use `source: derived` for human/rule-based review, or `model_inference` for a cl
 Assessments are not separately persisted in V1. Save returned JSON if needed and use the existing action log after review. Query omission mode disables assessment-driven actions and query-derived source retrieval. Query text and rationale are sanitized on CLI/MCP output. Other external text carries the existing untrusted-data warning. An explicitly enabled raw-query override retains the existing owner-controlled behavior.
 
 Observed provider evidence, derived rule outputs and model/user interpretations remain separate records with source IDs and input references. Human assessments use `kind: user_inference`, distinct from a derived calculation. A provider estimate is observed provider data, not measured reality. Classification records cite observations and relevant interpretations; accepted and rejected assessments retain their labels. Only the selected ten external observations contribute to a candidate's calculations, and those observations are returned; additional omitted observations are noted. Recommendations are fixed rule templates and never editorial copy.
+
+
+## Optional query visibility filters
+
+Use the existing analysis to inspect current query/page observations in an editable position range:
+
+```sh
+page-evidence opportunities --query-visibility --page-budget=10 --limit=5
+page-evidence opportunities --minimum-impressions=200 --query-minimum-impressions=50 --query-minimum-position=3 --query-maximum-position=12
+```
+
+MCP: `find_search_opportunities({queryVisibility: {minimumImpressions: 50, minimumPosition: 3, maximumPosition: 12}, minimumImpressions: 200, pageBudget: 10, limit: 5})`.
+
+The mode is off by default. `--query-visibility` or any query filter flag enables it; an empty MCP `queryVisibility: {}` uses 25 query impressions and positions 4–20. Existing top-level `minimumImpressions` remains the page threshold (default 100). Bounds are inclusive and must be finite positive numbers with maximum position at least minimum position. These are editable retrieval filters, not universal ranking targets or promises of gains.
+
+Only existing pages meeting the page-impression threshold and containing matching current query evidence are returned in this mode. Matching query evidence supplies the ranking-range signal even when the page's overall average position is outside that range. Snapshot/query coverage and existing action-review gates still apply; no new page is inferred from this mode. Returned `visibilityEvidence` includes up to five queries selected by impressions before output truncation, observed prior rows, click/impression/position changes, retrieval times and an intent/answer/link review prompt. Negative `positionChange` means a lower numeric average position. Missing prior query evidence returns null deltas, never invented zero. Exact matching uses the existing normalized query key; when duplicate variants occur, the highest-impression row supplies the observation rather than summing variants.
+
+Selection reuses the existing page-impression ranking and bounded page budget; this is not site-wide query discovery. Matching queries on uninspected pages can be missed. Top-level `queryVisibility` shows filters, matching returned-scope page count, query-example bounds, and partial/failed retrieval issues even when a failed page supplies no matches. Existing overall counts continue to describe all considered candidates, before requested filters. External evidence matching, assessments, source context and provider metric meanings remain unchanged. Source excerpts still use the existing bounded query-term selection and do not establish intent fit.
+
+No additional retrieval path or MCP tool was added. Existing query caches and sanitization apply; omission mode hides text while retaining metrics. The default mode retains existing classification, sorting and response fields. Rebuild/reconnect clients to expose the new optional MCP input. See [scope and verification](2026-11-07-query-visibility-plan.md).

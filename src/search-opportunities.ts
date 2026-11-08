@@ -16,11 +16,11 @@ export const assessmentSchema=z.object({
 });
 export type SearchAssessment=z.infer<typeof assessmentSchema>;
 export type SearchSourceContext={configured:boolean;sources?:{file:string;mapping:string;title:string|null;matchingHeadings:{heading:string;matchedTerms:string[]}[];excerpts:{text:string;matchedTerms:string[]}[]}[]};
-export type SearchPageContext={url:string;current:Query[];previous:Query[];truncated:boolean;fetchedAt?:string;sourceContext?:SearchSourceContext;error?:string};
+export type SearchPageContext={url:string;current:Query[];previous:Query[];truncated:boolean;fetchedAt?:string;previousFetchedAt?:string;sourceContext?:SearchSourceContext;error?:string};
 export type SearchSnapshot={id:string;profile:string;analyticsProvider:Config['analyticsProvider'];createdAt:string;range:{current:Period;previous:Period};gsc:Page[];previousGsc:Page[];analytics:{current:AnalyticsEvidence;previous:AnalyticsEvidence};coverage:{readiness:DecisionReadiness}};
 export type SearchEvidence={id:string;source:string;kind:'observed'|'derived'|'model_inference'|'user_inference';summary:string;data:unknown;inputRefs?:string[]};
 export type SearchOpportunity={
-  id:string;action:SearchAction;targetUrl:string|null;relatedUrls:string[];
+  id:string;action:SearchAction;targetUrl:string|null;relatedUrls:string[];visibilityEvidence?:VisibilityEvidence;
   queries:{query:string;match:'exact'|'external_only'|'gsc_only'}[];
   grouping:{kind:'verified_page'|'exact_query_overlap'|'unmatched_query';semanticCluster:false};
   potential:Level;confidence:Level;effort:null;reviewRequired:boolean;
@@ -29,7 +29,11 @@ export type SearchOpportunity={
   independentSupport:boolean;prioritySignals:{firstPartyImpressions:number;exactQueryImpressions:number;externalDemandLowerBound:number|null};
   externalContribution:{matchedObservations:number;independentDemandSupport:boolean};
 };
-export type SearchOptions={limit?:number;action?:SearchAction;requireIndependentSupport?:boolean;minimumImpressions?:number;minimumDemand?:number;maxExternalAgeDays?:number};
+export const queryVisibilitySchema=z.object({minimumImpressions:z.number().finite().min(1).default(25),minimumPosition:z.number().finite().min(1).default(4),maximumPosition:z.number().finite().min(1).default(20)}).refine(value=>value.maximumPosition>=value.minimumPosition,{message:'maximumPosition must be at least minimumPosition.'});
+export type QueryVisibility=z.input<typeof queryVisibilitySchema>;
+export type VisibilityQuery={query:string;current:Query;previous:Query|null;clickChange:number|null;impressionChange:number|null;positionChange:number|null;baseline:'observed'|'unavailable'};
+export type VisibilityEvidence={filters:z.output<typeof queryVisibilitySchema>;eligibleQueries:number;queries:VisibilityQuery[];queriesTruncated:boolean;retrieval:{currentFetchedAt?:string;previousFetchedAt?:string;incomplete:boolean};reviewRequired:true;reviewPrompt:string};
+export type SearchOptions={queryVisibility?:QueryVisibility;limit?:number;action?:SearchAction;requireIndependentSupport?:boolean;minimumImpressions?:number;minimumDemand?:number;maxExternalAgeDays?:number};
 
 export function queryKey(query:string){return query.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase()}
 // Retain host identity in the key. Reusing the path normalizer without this
@@ -50,6 +54,7 @@ export function discoverSearchPages(snapshot:SearchSnapshot,external:ExternalSea
 type Group={key:string;pages:Page[];external:ExternalSearchObservation[];queries:Map<string,string>};
 export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contexts:SearchPageContext[];external?:ExternalSearchDataset;config:Config;assessments?:SearchAssessment[];options?:SearchOptions;now?:Date}){
   const {snapshot,contexts,external,config:c}=input,options=input.options??{},limit=options.limit??10;
+  const visibility=options.queryVisibility===undefined?undefined:queryVisibilitySchema.parse(options.queryVisibility);
   const thresholds={minimumImpressions:options.minimumImpressions??100,minimumDemand:options.minimumDemand??100,maxExternalAgeDays:options.maxExternalAgeDays??90};
   if(!Number.isInteger(limit)||limit<1||limit>20)throw Error('limit must be a whole number from 1 to 20.');
   for(const value of Object.values(thresholds))if(!Number.isFinite(value)||value<1)throw Error('Opportunity thresholds must be positive finite numbers.');
@@ -80,6 +85,17 @@ export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contex
     const id='search_'+hash(group.key),page=group.pages[0],context=page?contextByKey.get(sitePageKey(page.url,c)):undefined;
     const currentQueries=context?.current.filter(x=>usableQuery(x.query))??[];
     const queryMetrics=new Map<string,Query>();for(const query of currentQueries){const key=queryKey(query.query);if(query.impressions>(queryMetrics.get(key)?.impressions??-1))queryMetrics.set(key,query)}
+    let visibilityEvidence:VisibilityEvidence|undefined;
+    if(visibility){
+      const matching=[...queryMetrics.values()].filter(row=>Number.isFinite(row.impressions)&&Number.isFinite(row.position)&&row.impressions>=visibility.minimumImpressions&&row.position>=visibility.minimumPosition&&row.position<=visibility.maximumPosition).sort((a,b)=>b.impressions-a.impressions||a.position-b.position||a.query.localeCompare(b.query));
+      const priorQueries=new Map<string,Query>();
+      for(const row of context?.previous??[])if(usableQuery(row.query)&&row.impressions>(priorQueries.get(queryKey(row.query))?.impressions??-1))priorQueries.set(queryKey(row.query),row);
+      visibilityEvidence={filters:visibility,eligibleQueries:matching.length,queries:matching.slice(0,5).map(current=>{
+        const previous=priorQueries.get(queryKey(current.query))??null;
+        const comparable=previous!==null&&previous.impressions>0&&Number.isFinite(previous.position)&&previous.position>=1;
+        return{query:current.query,current,previous,baseline:comparable?'observed':'unavailable',clickChange:comparable?current.clicks-previous.clicks:null,impressionChange:comparable?current.impressions-previous.impressions:null,positionChange:comparable?current.position-previous.position:null};
+      }),queriesTruncated:matching.length>5,retrieval:{currentFetchedAt:context?.fetchedAt,previousFetchedAt:context?.previousFetchedAt,incomplete:Boolean(context?.truncated||context?.error)},reviewRequired:true,reviewPrompt:'Inspect query intent, the existing answer and relevant links. Average position is a descriptive filter, not a target or forecast; lower positionChange means a lower numeric average position.'};
+    }
     // The actual decision inputs are bounded along with their returned evidence,
     // rather than scoring hidden rows and returning unrelated examples.
     const selectedExternal=[...group.external].sort((a,b)=>{
@@ -94,7 +110,8 @@ export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contex
     if(page)refs.push(pageEvidence(page));
     for(const p of relatedPages.slice(0,5))refs.push(pageEvidence(p));
     const selectedExternalKeys=new Set(selectedExternal.map(x=>queryKey(x.query)));
-    const selectedQueries=currentQueries.filter(x=>group.queries.has(queryKey(x.query))).sort((a,b)=>Number(selectedExternalKeys.has(queryKey(b.query)))-Number(selectedExternalKeys.has(queryKey(a.query)))||b.impressions-a.impressions).slice(0,10);
+    const visibilityKeys=new Set(visibilityEvidence?.queries.map(row=>queryKey(row.query))??[]);
+    const selectedQueries=(visibility?[...queryMetrics.values()]:currentQueries).filter(x=>group.queries.has(queryKey(x.query))).sort((a,b)=>Number(visibilityKeys.has(queryKey(b.query)))-Number(visibilityKeys.has(queryKey(a.query)))||Number(selectedExternalKeys.has(queryKey(b.query)))-Number(selectedExternalKeys.has(queryKey(a.query)))||b.impressions-a.impressions).slice(0,10);
     for(const row of selectedQueries){
       const e={id:'gsc_query_'+hash(group.key+'\0'+row.query),source:'gsc',kind:'observed' as const,summary:'Measured query on this page; bounded fetched rows, not complete coverage.',data:{...row,snapshotId:snapshot.id,period:snapshot.range.current,fetchedAt:context?.fetchedAt}};refs.push(e);
     }
@@ -130,7 +147,7 @@ export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contex
     const readiness=context?.truncated||context?.error?{...snapshot.coverage.readiness,state:'incomplete_coverage' as const,reasons:[...snapshot.coverage.readiness.reasons,context.error??'Page query cap reached.']}:snapshot.coverage.readiness;
     const mature=Boolean(prior&&prior.impressions>=c.minimumBaselineImpressions);
     const traction=Boolean(page&&page.impressions>=thresholds.minimumImpressions);
-    const upside=Boolean(page&&((page.position>=4&&page.position<=20)||(prior&&prior.clicks-page.clicks>=3)));
+    const upside=Boolean(page&&(visibility?Boolean(visibilityEvidence?.eligibleQueries):((page.position>=4&&page.position<=20)||(prior&&prior.clicks-page.clicks>=3))));
     const matchedKeys=new Set(matched.map(x=>queryKey(x.query)));
     const exactQueryImpressions=selectedQueries.filter(q=>matchedKeys.has(queryKey(q.query))).reduce((sum,q)=>sum+q.impressions,0);
     let action:SearchAction='IGNORE',reasonCode='insufficient_evidence',summary='Evidence does not justify adding this opportunity to the work backlog.';
@@ -173,7 +190,7 @@ export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contex
     const recommendation:Record<SearchAction,string>={IMPROVE:'Inspect query intent and the existing page, then propose a focused improvement.',EXPAND:'Review the cited gap and expand the existing page before proposing another URL.',CREATE:'Review inventory and intent evidence, then decide whether a new page is justified.',CONSOLIDATE:'Review both pages, intent, links and historical movement before deciding on consolidation.',IGNORE:'Defer or reject this candidate until the missing evidence changes.'};
     const queryRows=[...group.queries.entries()].map(([key,query])=>({query,match:(currentQueries.some(x=>queryKey(x.query)===key)?group.external.some(x=>queryKey(x.query)===key)?'exact':'gsc_only':'external_only') as 'exact'|'gsc_only'|'external_only'})).slice(0,10);
     refs.push({id:'classification_'+id,source:'derived',kind:'derived',summary:summary,data:{rule:reasonCode,thresholds,traction,upside,mature,demandLowerBound:demand,independentSupport:independent},inputRefs:[...refs,...contradicting].map(x=>x.id)});
-    opportunities.push({id,action,targetUrl:page?.url??null,relatedUrls,queries:queryRows,grouping:{kind:action==='CONSOLIDATE'?'exact_query_overlap':page?'verified_page':'unmatched_query',semanticCluster:false},potential,confidence,effort:null,reviewRequired:true,recommendedAction:recommendation[action],reasoningSummary:summary,reasonCode,
+    opportunities.push({...(visibilityEvidence?{visibilityEvidence}:{}),id,action,targetUrl:page?.url??null,relatedUrls,queries:queryRows,grouping:{kind:action==='CONSOLIDATE'?'exact_query_overlap':page?'verified_page':'unmatched_query',semanticCluster:false},potential,confidence,effort:null,reviewRequired:true,recommendedAction:recommendation[action],reasoningSummary:summary,reasonCode,
       decisionReadiness:!mature&&page&&readiness.state==='ready'?{...readiness,state:'maturing',reasons:[...readiness.reasons,'Prior page impressions are below the mature-baseline threshold.']}:readiness,
       supportingEvidence:refs,contradictingEvidence:contradicting,missingEvidence:missing,independentSupport:independent,
       prioritySignals:{firstPartyImpressions:page?.impressions??0,exactQueryImpressions,externalDemandLowerBound:demand},externalContribution:{matchedObservations:matched.length,independentDemandSupport:independent}});
@@ -188,8 +205,8 @@ export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contex
   const level={high:2,medium:1,low:0};
   opportunities.sort((a,b)=>Number(b.action!=='IGNORE')-Number(a.action!=='IGNORE')||Number(b.prioritySignals.firstPartyImpressions>=thresholds.minimumImpressions)-Number(a.prioritySignals.firstPartyImpressions>=thresholds.minimumImpressions)||level[b.confidence]-level[a.confidence]||level[b.potential]-level[a.potential]||b.prioritySignals.firstPartyImpressions-a.prioritySignals.firstPartyImpressions||a.id.localeCompare(b.id));
   for(const assessment of assessments)if(!opportunities.some(x=>x.id===assessment.candidateId))assessmentWarnings.push(`Assessment candidate ${assessment.candidateId} was not found in this bounded evidence run.`);
-  const filtered=opportunities.filter(x=>(!options.action||x.action===options.action)&&(!options.requireIndependentSupport||x.independentSupport));
-  return{profile:c.profile,analyticsProvider:snapshot.analyticsProvider,snapshotId:snapshot.id,periods:snapshot.range,createdAt:now.toISOString(),externalDatasetId:external?.id??null,thresholds,
+  const filtered=opportunities.filter(x=>(!visibility||(x.prioritySignals.firstPartyImpressions>=thresholds.minimumImpressions&&Boolean(x.visibilityEvidence?.eligibleQueries)))&&(!options.action||x.action===options.action)&&(!options.requireIndependentSupport||x.independentSupport));
+  return{profile:c.profile,analyticsProvider:snapshot.analyticsProvider,snapshotId:snapshot.id,periods:snapshot.range,createdAt:now.toISOString(),externalDatasetId:external?.id??null,thresholds,...(visibility?{queryVisibility:{filters:visibility,matchingPages:filtered.length,queryExamplesPerPage:5,retrievalIssues:contexts.filter(context=>context.error||context.truncated).map(context=>({url:context.url,state:context.error?'failed':'partial',reason:context.error?'Query retrieval failed; no absence or zero-traffic conclusion is possible.':'Query row cap reached; eligible queries may be omitted.'})),scope:'Current queries on the existing impression-ranked page budget only. Queries on uninspected pages may match but cannot be evaluated. Prior query absence is unavailable, not zero; intent fit requires review.'}}:{}),
     sorting:['actionable first','meaningful first-party traction','confidence','potential','page impressions','stable id'],
     opportunities:filtered.filter(x=>options.action==='IGNORE'||x.action!=='IGNORE').slice(0,limit),
     ignored:filtered.filter(x=>x.action==='IGNORE').slice(0,Math.min(limit,5)),
@@ -200,7 +217,9 @@ export function analyzeSearchOpportunities(input:{snapshot:SearchSnapshot;contex
 
 export function renderSearchOpportunities(result:ReturnType<typeof analyzeSearchOpportunities>){
   const lines=[`Page Evidence search opportunities — ${result.profile}`,`Snapshot: ${result.snapshotId}`,`Considered: ${result.counts.considered}; ignored: ${result.counts.byAction.IGNORE}`,`Inspected pages: ${result.coverage.pagesInspected}/${result.coverage.knownPages}`,''];
+  if(result.queryVisibility)lines.push(`Query filters: impressions >= ${result.queryVisibility.filters.minimumImpressions}; average position ${result.queryVisibility.filters.minimumPosition}–${result.queryVisibility.filters.maximumPosition}. These are editable filters, not targets.`,result.queryVisibility.scope,'');
   for(const opportunity of result.opportunities){lines.push(`${opportunity.action} | ${opportunity.targetUrl??'new page under review'} | potential ${opportunity.potential} | confidence ${opportunity.confidence}`,`  Candidate: ${opportunity.id}`,`  ${opportunity.reasoningSummary}`,`  Next: ${opportunity.recommendedAction}`,`  Evidence: ${opportunity.supportingEvidence.map(x=>`${x.source}:${x.id}`).join(', ')}`,`  Contradictions: ${opportunity.contradictingEvidence.map(x=>x.summary).join(' ')||'None recorded.'}`,`  Missing: ${opportunity.missingEvidence.join(' ')||'None recorded.'}`,`  Readiness: ${opportunity.decisionReadiness.state}; review required`,'');}
+  for(const opportunity of result.opportunities)for(const row of opportunity.visibilityEvidence?.queries??[])lines.push(`  Query: ${row.query||'[query hidden]'} | impressions ${row.previous?.impressions??'unavailable'} → ${row.current.impressions} | clicks ${row.previous?.clicks??'unavailable'} → ${row.current.clicks} | position ${row.previous?.position??'unavailable'} → ${row.current.position}`);
   if(!result.opportunities.length)lines.push('No candidate passed the requested evidence gates.');
   for(const ignored of result.ignored)lines.push(`IGNORE | ${ignored.targetUrl??ignored.id} | ${ignored.reasonCode}: ${ignored.reasoningSummary}`);
   lines.push('',result.limitation);return lines.join('\n');

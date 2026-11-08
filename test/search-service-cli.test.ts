@@ -66,3 +66,12 @@ describe('CLI output',()=>{
     expect(()=>cli(['opportunities','--format=html'])).toThrow();
   });
 });
+
+it('reuses existing query fetches for visibility filtering and validates before retrieval',async()=>{
+  const initial=await findSearchOpportunities({pageBudget:1});expect(initial.opportunities).toHaveLength(1);
+  const filtered=await findSearchOpportunities({pageBudget:1,queryVisibility:{minimumPosition:8,maximumPosition:12,minimumImpressions:100}});
+  expect(filtered.opportunities[0].visibilityEvidence?.eligibleQueries).toBe(1);
+  expect(queryRows).toHaveBeenCalledTimes(2);
+  await expect(findSearchOpportunities({queryVisibility:{minimumPosition:20,maximumPosition:4}})).rejects.toThrow('maximumPosition');
+  expect(queryRows).toHaveBeenCalledTimes(2);
+});

@@ -13,7 +13,7 @@ import {clickChangeBreakdown,digestChanges} from './digest.js';
 import {reviewAssessment,validDate} from './action-review.js';
 import {MAX_EXTERNAL_BYTES,parseAhrefsCsv} from './ahrefs-csv.js';
 import {externalDatasetSchema,externalDatasetSummary} from './external-search.js';
-import {analyzeSearchOpportunities,assessmentSchema,discoverSearchPages,searchActions,sitePageKey,type SearchAssessment,type SearchOptions,type SearchPageContext,type SearchSnapshot} from './search-opportunities.js';
+import {analyzeSearchOpportunities,assessmentSchema,discoverSearchPages,queryVisibilitySchema,searchActions,sitePageKey,type SearchAssessment,type SearchOptions,type SearchPageContext,type SearchSnapshot} from './search-opportunities.js';
 import {queryPageDrift,type DriftOptions} from './query-page-drift.js';
 import {inspectPageHttp} from './page-http.js';
 
@@ -116,6 +116,7 @@ export async function findSearchOpportunities(input:SearchOptions&{windowDays?:n
   if(input.externalPath&&input.externalDatasetId)throw Error('Use an external path or dataset ID, not both.');
   if(input.action&&!searchActions.includes(input.action))throw Error('Unknown search action.');
   for(const value of [input.minimumImpressions,input.minimumDemand,input.maxExternalAgeDays])if(value!==undefined&&(!Number.isFinite(value)||value<1))throw Error('Opportunity thresholds must be positive finite numbers.');
+  if(input.queryVisibility!==undefined)queryVisibilitySchema.parse(input.queryVisibility);
   if(input.assessments&&input.assessments.length>20)throw Error('At most 20 assessments are allowed.');
   input.assessments?.forEach(x=>assessmentSchema.parse(x));
   const c=config(),externalDatasetId=input.externalPath?importExternalSearchEvidence(input.externalPath).id:input.externalDatasetId;
@@ -129,7 +130,7 @@ export async function findSearchOpportunities(input:SearchOptions&{windowDays?:n
     const pageKey=sitePageKey(page.url,c);
     const externalTerms=external?.observations.filter(x=>x.rankingUrl&&sitePageKey(x.rankingUrl,c)===pageKey).map(x=>x.query)??[];
     const terms=safeQueryTerms([...rankQueries(current.rows).slice(0,10).map(x=>x.query),...externalTerms.slice(0,10)]);
-    contexts.push({url:page.url,current:current.rows,previous:previous.rows,truncated:current.truncated||previous.truncated,fetchedAt:current.fetchedAt,sourceContext:await pageSourceContext(page.url,terms)});
+    contexts.push({url:page.url,current:current.rows,previous:previous.rows,truncated:current.truncated||previous.truncated,fetchedAt:current.fetchedAt,previousFetchedAt:previous.fetchedAt,sourceContext:await pageSourceContext(page.url,terms)});
   }catch(error){contexts.push({url:page.url,current:[],previous:[],truncated:true,error:error instanceof Error?error.message:'Page evidence retrieval failed.'})}}
   return{...analyzeSearchOpportunities({snapshot,contexts,external,config:c,assessments:input.assessments,options:input}),windowDays,pageBudget,freshness:(snapshot as any).freshness,external:external?externalDatasetSummary(external):null};
 }
