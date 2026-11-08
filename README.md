@@ -259,3 +259,10 @@ See the [implementation plan](docs/2026-11-07-readiness-inventory-plan.md) for s
 
 
 `opportunities --query-visibility` optionally filters existing search opportunities by current query impressions and average position on the inspected page budget. Customize with `--query-minimum-impressions`, `--query-minimum-position` and `--query-maximum-position`; MCP accepts `queryVisibility` on `find_search_opportunities`. Up to five matching query examples include prior observations and movement; missing prior evidence stays null. The mode preserves existing defaults when absent and requires intent/content review before edits. See [filter semantics and limits](docs/search-opportunities.md#optional-query-visibility-filters).
+
+
+## Branded and non-branded query evidence
+
+`page-evidence brand-search '--brand-terms=["Example","Example Cloud"]' --days=30` (MCP `get_brand_search_performance`) returns current/prior GSC query-only groups with explicit matching rules, bounded examples and coverage. Optional `PAGE_EVIDENCE_BRAND_TERMS` configures a JSON phrase array per instance; per-call phrases override it. No names are inferred automatically. Missing rules return `needs_configuration` before provider requests.
+
+Whole token phrases match after Unicode/case/punctuation normalization. Non-branded means no configured phrase matched; intent still requires review. Fetched query totals are not complete site totals. Missing groups/periods stay unavailable, observed zero stays zero, and capped/failed retrieval is explicit. No analytics attribution, persistent state or dependency changes. See [matching, arithmetic and cache contracts](docs/brand-search.md) and [verification](docs/2026-11-08-brand-search-plan.md). Rebuild/reconnect MCP clients to load the additional tool.

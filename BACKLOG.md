@@ -1,6 +1,6 @@
 # Page Evidence backlog
 
-Updated: 2026-11-07, after provider readiness and bounded repository inventory.
+Updated: 2026-11-08, after branded/non-branded query evidence.
 
 This is the single product decision backlog. It answers: **what page should I investigate next, why, and what can the data not prove?** An item belongs here only if it improves that decision, makes a deliberate change reviewable, or prevents a measurement mistake. Page Evidence stays local-first and makes no changes to websites or external services.
 
@@ -48,7 +48,7 @@ Do not add an MCP feature unless it returns data or durable local state a client
 
 ## Search and analytics opportunity roadmap — 2026-11-07
 
-The first three items below are implemented in this checkout; verification is recorded in the linked plan. Remaining items are proposals only. All reusable rules belong in shared core; provider-specific evidence belongs in adapters. No live account checks, external changes, new dependencies or schema migrations are authorised by this scope.
+The first five items below are implemented in this checkout; individual plans record implementation and verification. Remaining items are proposals only. All reusable rules belong in shared core; provider-specific evidence belongs in adapters. Implementation does not authorise publishing or private instance configuration changes.
 
 | Item | Decision supported | Scope / acceptance |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ The first three items below are implemented in this checkout; verification is re
 | Click-change breakdown | Should an investigation start with impressions, CTR or query mix? | Exact descriptive arithmetic separating impression and CTR components for comparable page totals; unavailable for zero/missing impression baselines. Include in page context and digest; do not infer causes. |
 | Better internal-link evidence | Which source passage could usefully link to a selected page? | Bounded surrounding excerpts and inspectable existing-link evidence from configured local source; retain existing response fields and disclose parsing limits. |
 | Queries near stronger visibility — implemented in checkout | Which existing page merits inspection before creating content? | Optional queryVisibility filters on existing search opportunities; configurable page/query impression and query-position bounds, five examples with prior observations/movement, retrieval issues and intent review. Existing page budget/cache retained. See [plan](docs/2026-11-07-query-visibility-plan.md); client rollout remains open. |
-| Branded/non-branded performance | Does growth extend beyond existing brand awareness? | Configured brand/product variants, transparent matching and unclassified evidence; withheld queries and bounded rows prevent a complete partition of site totals. |
+| Branded/non-branded performance — implemented in checkout | Does fetched query growth extend beyond configured brand phrases? | Explicit brand/product variants, versioned whole-phrase matching, query-only GSC aggregation, three groups and descriptive current/prior movement with cap/missing/failure states. Not a complete site-traffic partition. See [contract](docs/brand-search.md) and [verification](docs/2026-11-08-brand-search-plan.md). |
 | Landing-page engagement mismatches | Which search landing experiences deserve review? | Contrast GSC movement with provider-supported landing-page engagement, preserving source periods and metric semantics. Fast answers can have low engagement; fix availability/readiness gaps first. |
 | Landing-page business outcomes | Which opportunities matter to real outcomes? | Extend adapters only where supported, with landing/session scope, compatible dimensions, configured meaningful events and coverage. Current GA4 property-level counts are not landing-page or query attribution. This is separate from property-level outcome trend snapshots. |
 

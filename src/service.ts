@@ -1,3 +1,4 @@
+import {brandComparison,BRAND_RULE_VERSION,configuredBrandTerms,summarizeBrandQueries} from './brand-search.js';
 import {acquisitionEvidence} from './analytics.js';
 import {metricEvidence,unavailableLenses} from './measurement.js';
 import fs from 'node:fs';
@@ -5,7 +6,7 @@ import path from 'node:path';
 import {analyticsProvider,configuredOutcomeEvents} from './analytics.js';
 import type {Period,Query} from './core.js';
 import {candidates,comparisonReadiness,config,evidenceIdentity,pageKey,periods,queryChanges,rankQueries,reportReadiness,snapshotId,snapshotMatches,Store,validWindowDays} from './core.js';
-import {gsc,pageSegments,queryPageRows,queryRows} from './google.js';
+import {gsc,pageSegments,queryPageRows,queryRows,siteQueryRows} from './google.js';
 import {internalLinkContext,pageSourceContext,repositoryContext} from './context.js';
 import {safeQueryTerms} from './query-safety.js';
 import {freshness,QUERY_TTL_MS,SNAPSHOT_TTL_MS} from './freshness.js';
@@ -35,9 +36,11 @@ type QueryFetch={rows:Query[];truncated:boolean;fetchedAt:string};
 const queryRowCache=new Map<string,{scope:string;createdAt:number;promise:Promise<QueryFetch>}>();
 type QueryPageFetch=Awaited<ReturnType<typeof queryPageRows>>&{fetchedAt:string};
 const queryPageRowCache=new Map<string,{scope:string;createdAt:number;promise:Promise<QueryPageFetch>}>();
+type SiteQueryFetch=Awaited<ReturnType<typeof siteQueryRows>>&{fetchedAt:string};
+const siteQueryRowCache=new Map<string,{scope:string;createdAt:number;promise:Promise<SiteQueryFetch>}>();
 const cacheScope=(c:ReturnType<typeof config>)=>JSON.stringify([c.dataDir,evidenceIdentity(c).fingerprint]);
-export function clearQueryRowCache(){queryRowCache.clear();queryPageRowCache.clear()}
-function clearProfileQueries(c:ReturnType<typeof config>){const scope=cacheScope(c);let removed=0;for(const cache of [queryRowCache,queryPageRowCache])for(const [key,entry] of cache)if(entry.scope===scope){cache.delete(key);removed++}return removed}
+export function clearQueryRowCache(){queryRowCache.clear();queryPageRowCache.clear();siteQueryRowCache.clear()}
+function clearProfileQueries(c:ReturnType<typeof config>){const scope=cacheScope(c);let removed=0;for(const cache of [queryRowCache,queryPageRowCache,siteQueryRowCache])for(const [key,entry] of cache)if(entry.scope===scope){cache.delete(key);removed++}return removed}
 async function cachedQueryPageRows(c:ReturnType<typeof config>,period:Period,query?:string){
   const scope=cacheScope(c),key=JSON.stringify([scope,query??null,period.start,period.end]);
   let entry=queryPageRowCache.get(key);const cached=Boolean(entry&&Date.now()-entry.createdAt<QUERY_TTL_MS);
@@ -81,7 +84,7 @@ export async function sync(refresh=false,windowDays=30){
 export function cacheStatus(windowDays=30){
   if(!validWindowDays(windowDays))throw Error('windowDays must be one of 7, 30, 60, or 90.');
   const c=config(),range=periods(c.lag,windowDays),id=snapshotId(c,range.current),store=new Store(c.dataDir);
-  try{const raw=store.get(id),saved=snapshotMatches(raw,c)?raw:null,entries=[...queryRowCache.values()].filter(entry=>entry.scope===cacheScope(c));return{profile:c.profile,windowDays,snapshotId:id,periods:range,snapshot:{present:Boolean(saved),...freshness(saved?.createdAt,SNAPSHOT_TTL_MS,Boolean(saved))},queryCache:{scope:'This process and profile only',entries:entries.length,expiredEntries:entries.filter(entry=>Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},queryPageCache:{scope:'This process and configuration only',entries:[...queryPageRowCache.values()].filter(entry=>entry.scope===cacheScope(c)).length,expiredEntries:[...queryPageRowCache.values()].filter(entry=>entry.scope===cacheScope(c)&&Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},controls:{refreshTool:'refresh_site_evidence',effect:'Refetch the selected snapshot and invalidate this profile’s in-process query cache. Query rows are fetched on the next query request; historical snapshots and actions are retained.'}}}finally{store.db.close()}
+  try{const raw=store.get(id),saved=snapshotMatches(raw,c)?raw:null,entries=[...queryRowCache.values()].filter(entry=>entry.scope===cacheScope(c));return{profile:c.profile,windowDays,snapshotId:id,periods:range,snapshot:{present:Boolean(saved),...freshness(saved?.createdAt,SNAPSHOT_TTL_MS,Boolean(saved))},queryCache:{scope:'This process and profile only',entries:entries.length,expiredEntries:entries.filter(entry=>Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},queryPageCache:{scope:'This process and configuration only',entries:[...queryPageRowCache.values()].filter(entry=>entry.scope===cacheScope(c)).length,expiredEntries:[...queryPageRowCache.values()].filter(entry=>entry.scope===cacheScope(c)&&Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},siteQueryCache:{scope:'This process and configuration only',entries:[...siteQueryRowCache.values()].filter(entry=>entry.scope===cacheScope(c)).length,expiredEntries:[...siteQueryRowCache.values()].filter(entry=>entry.scope===cacheScope(c)&&Date.now()-entry.createdAt>=QUERY_TTL_MS).length,ttlSeconds:QUERY_TTL_MS/1000},controls:{refreshTool:'refresh_site_evidence',effect:'Refetch the selected snapshot and invalidate this profile’s in-process query cache. Query rows are fetched on the next query request; historical snapshots and actions are retained.'}}}finally{store.db.close()}
 }
 
 export async function refreshEvidence(windowDays=30){const snapshot=await sync(true,windowDays);return{profile:snapshot.profile,snapshotId:snapshot.id,periods:snapshot.range,freshness:snapshot.freshness,queryCacheInvalidated:true,queryRowsRefetched:false}}
@@ -278,3 +281,34 @@ export async function status(){
 }
 
 export {urlInventory} from './url-inventory.js';
+
+
+export async function brandSearchPerformance(input:{brandTerms?:string[];windowDays?:number;limit?:number;refresh?:boolean}={}){
+  const windowDays=input.windowDays??30,limit=input.limit??5;
+  if(!validWindowDays(windowDays))throw Error('windowDays must be one of 7, 30, 60, or 90.');
+  if(!Number.isInteger(limit)||limit<1||limit>5)throw Error('limit must be a whole number from 1 to 5.');
+  const matching=configuredBrandTerms(input.brandTerms),c=config(),range=periods(c.lag,windowDays);
+  const identity={profile:c.profile,site:{domain:c.domain,gscProperty:c.gscProperty},analyticsProvider:c.analyticsProvider,identity:evidenceIdentity(c)};
+  const rules={version:BRAND_RULE_VERSION,...matching,matching:'Unicode NFKC and lowercase; punctuation/whitespace separate letter/number tokens; whole contiguous token phrases. No regex, fuzzy spelling or inferred brand variants.'};
+  if(!matching.terms.length)return{...identity,state:'needs_configuration',rules,reason:'Supply brandTerms or configure PAGE_EVIDENCE_BRAND_TERMS as a JSON array. No query report was fetched.'};
+  if(input.refresh)clearProfileQueries(c);
+  const fetchPeriod=async(period:Period)=>{
+    try{
+      const scope=cacheScope(c),key=JSON.stringify([scope,period.start,period.end]);
+      let entry=siteQueryRowCache.get(key);const cached=Boolean(entry&&Date.now()-entry.createdAt<QUERY_TTL_MS);
+      if(!cached){
+        if(siteQueryRowCache.size>=10)siteQueryRowCache.delete(siteQueryRowCache.keys().next().value as string);
+        const promise=siteQueryRows(c,period).then(result=>({...result,fetchedAt:new Date().toISOString()}));
+        entry={scope,createdAt:Date.now(),promise};siteQueryRowCache.set(key,entry);
+        promise.catch(()=>{if(siteQueryRowCache.get(key)===entry)siteQueryRowCache.delete(key)});
+      }
+      const fetched=await entry!.promise;
+      return{state:fetched.rows.length?'observed' as const:'empty' as const,period,summary:summarizeBrandQueries(fetched.rows,matching.terms,limit),freshness:freshness(fetched.fetchedAt,QUERY_TTL_MS,cached),coverage:{fetchedRows:fetched.rows.length,rowCap:c.cap,capReached:fetched.truncated,completeSiteQueryCoverage:false}};
+    }catch{return{state:'failed' as const,period,summary:null,reason:'GSC query evidence could not be retrieved; check configuration and read access.'}}
+  };
+  const [current,previous]=await Promise.all([fetchPeriod(range.current),fetchPeriod(range.previous)]);
+  return{...identity,state:current.state==='failed'&&previous.state==='failed'?'failed':current.state==='failed'||previous.state==='failed'||current.coverage?.capReached||previous.coverage?.capReached?'partial':current.state==='empty'&&previous.state==='empty'?'empty':'observed',rules,windowDays,periods:range,reportingLagDays:c.lag,
+    source:{provider:'gsc',dimensions:['query'],aggregationType:'byProperty',searchType:'web',dataState:'final',timezone:'America/Los_Angeles',analyticsUsed:false},
+    evidence:{current,previous},comparison:brandComparison(current.summary,previous.summary),exampleLimitPerGroup:limit,
+    limitations:['Totals and changes describe fetched query rows, not all site search traffic. GSC can omit queries even below the row cap; the groups are not a complete partition of site totals.','Non-branded means no configured phrase matched; missing variants, typos or ambiguous phrases can misclassify brand intent. Inspect rules and examples.','Unusable query text is unclassified. A group with no observed rows or a failed period is unavailable, not measured zero. Observed zero remains zero.','Position is impression-weighted; lower positionChange means a lower numeric average position. Changes do not establish causes, brand awareness, demand or analytics outcomes.','Queries are cached for one hour per process and configuration; no snapshots, brand rules or provider data are persisted by this tool.']};
+}

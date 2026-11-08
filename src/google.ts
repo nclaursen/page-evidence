@@ -8,3 +8,18 @@ export const QUERY_ROW_CAP=5000;
 export async function queryRows(c:Config,p:Period,pageUrl:string){const api=google.searchconsole({version:'v1',auth:oauth(c).client}),r=await api.searchanalytics.query({siteUrl:c.gscProperty,requestBody:{startDate:p.start,endDate:p.end,dimensions:['query','page'],aggregationType:'byPage',dataState:'final',rowLimit:QUERY_ROW_CAP,dimensionFilterGroups:[{filters:[{dimension:'page',operator:'equals',expression:pageUrl}]}]}}),rows=(r.data.rows||[]).map(x=>({query:x.keys?.[0]||'',clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0} as Query));return{rows,truncated:rows.length>=QUERY_ROW_CAP};}
 export type QueryPageRow=Query&{url:string};export async function queryPageRows(c:Config,p:Period,query?:string){const api=google.searchconsole({version:'v1',auth:oauth(c).client}),rows:QueryPageRow[]=[];for(let startRow=0;startRow<c.cap;startRow+=25000){const rowLimit=Math.min(25000,c.cap-startRow),r=await api.searchanalytics.query({siteUrl:c.gscProperty,requestBody:{startDate:p.start,endDate:p.end,dimensions:['query','page'],aggregationType:'byPage',dataState:'final',rowLimit,startRow,...(query!==undefined?{dimensionFilterGroups:[{filters:[{dimension:'query',operator:'equals',expression:query}]}]}:{})}}),batch=(r.data.rows||[]).map(x=>({query:x.keys?.[0]||'',url:x.keys?.[1]||'',clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0}));rows.push(...batch);if(batch.length<rowLimit)return{rows,truncated:false}}return{rows,truncated:true}}
 export async function pageSegments(c:Config,p:Period,pageUrl:string,dimension:'country'|'device'|'searchAppearance',limit=10){const api=google.searchconsole({version:'v1',auth:oauth(c).client}),r=await api.searchanalytics.query({siteUrl:c.gscProperty,requestBody:{startDate:p.start,endDate:p.end,dimensions:[dimension,'page'],aggregationType:'byPage',dataState:'final',rowLimit:Math.min(Math.max(limit,1),50),dimensionFilterGroups:[{filters:[{dimension:'page',operator:'equals',expression:pageUrl}]}]}});return(r.data.rows||[]).map(x=>({value:x.keys?.[0]||'',clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0}as Segment));}
+
+/** Query-only property aggregation avoids counting the same query once per page. */
+export async function siteQueryRows(c:Config,p:Period){
+  const api=google.searchconsole({version:'v1',auth:oauth(c).client}),rows:Query[]=[];
+  if(!Number.isInteger(c.cap)||c.cap<1)throw Error('GSC_ROW_CAP must be a positive integer.');
+  const metric=(value:unknown)=>{if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw Error('GSC query report returned missing or invalid numeric evidence.');return value};
+  for(let startRow=0;startRow<c.cap;startRow+=25000){
+    const rowLimit=Math.min(25000,c.cap-startRow),r=await api.searchanalytics.query({siteUrl:c.gscProperty,requestBody:{startDate:p.start,endDate:p.end,dimensions:['query'],aggregationType:'byProperty',dataState:'final',type:'web',rowLimit,startRow}});
+    if(r.data.responseAggregationType&&r.data.responseAggregationType!=='byProperty')throw Error('GSC query report returned an unexpected aggregation type.');
+    const batch=r.data.rows??[];
+    rows.push(...batch.map(row=>({query:row.keys?.[0]??'',clicks:metric(row.clicks),impressions:metric(row.impressions),ctr:metric(row.ctr),position:metric(row.position)})));
+    if(batch.length<rowLimit)return{rows,truncated:false};
+  }
+  return{rows,truncated:true};
+}

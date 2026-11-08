@@ -150,3 +150,10 @@ The shared source scanner excludes local dependency copies with dot, whitespace 
 ## Implementation update — query visibility filters, 7 November 2026
 
 The shared pure search-opportunity engine accepts an optional typed `queryVisibility` range and returns bounded current/prior query observations and descriptive deltas for inspected existing pages. Provider-independent rules remain in `search-opportunities.ts`; service orchestration reuses existing snapshot and profile-scoped page-query caches. Existing CLI/MCP interfaces gain optional filters without another tool or retrieval path. Coverage discloses the impression-ranked page budget, failed/capped retrieval and bounded examples. Intent judgment remains in the client. Defaults, adapter semantics, persistence and configuration are unchanged. See [plan](2026-11-07-query-visibility-plan.md).
+
+
+## Implementation update — brand query evidence, 8 November 2026
+
+Shared `brand-search.ts` owns bounded explicit phrase validation, deterministic classification and fetched-row aggregation/comparison. `google.ts` adds query-only final web retrieval with `byProperty` aggregation; existing page/query adapters remain unchanged. `service.ts` provides one-hour, ten-entry source caching scoped by period, evidence identity and data directory, isolated period failures, source metadata and no persistent state. Existing refresh invalidation includes this cache; cache status adds `siteQueryCache`.
+
+Additive `get_brand_search_performance` / `brand-search` interfaces accept optional phrases and comparison windows; private configuration may supply `PAGE_EVIDENCE_BRAND_TERMS`. Missing rules cause no provider calls. GA4/Matomo/Engage/none share GSC-only behavior without analytics attribution. MCP now registers 25 tools. Existing snapshot identities/formats, provider interfaces/defaults, dependencies and transport remain unchanged. Matching is explicit whole token phrases, not semantic intent or a complete brand-traffic partition. See [contract](brand-search.md) and [plan/verification](2026-11-08-brand-search-plan.md).
